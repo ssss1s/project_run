@@ -6,7 +6,7 @@ from rest_framework.response import Response
 @api_view(['GET'])
 def company_info(request):
     details = {
-        'name': settings.COMPANY_NAME,
+        'company_name': settings.COMPANY_NAME,
         'slogan': settings.SLOGAN,
         'contacts': settings.CONTACTS,
     }
