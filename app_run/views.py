@@ -8,7 +8,7 @@ from .serializers import RunSerializer, UserSerializer
 
 
 class RunViewSet(viewsets.ModelViewSet):
-    queryset = Run.objects.all()
+    queryset = Run.objects.select_related()
     serializer_class = RunSerializer
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -19,8 +19,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = self.queryset
         user_type = self.request.query_params.get('type', None)
-        if user_type == None:
-            return qs
         if user_type == 'coach':
             qs = qs.filter(is_staff=True)
         elif user_type == 'athlete':

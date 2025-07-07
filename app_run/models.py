@@ -7,3 +7,4 @@ class Run(models.Model):
     athlete = models.ForeignKey(User, on_delete=models.CASCADE)
 
 
+
