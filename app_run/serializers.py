@@ -7,9 +7,8 @@ class AthleteSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username',  'first_name', 'last_name']
 
-
 class RunSerializer(serializers.ModelSerializer):
-    athlete = AthleteSerializer()
+    athlete_data = AthleteSerializer(source='athlete', read_only=True)
     class Meta:
         model = Run
         fields = '__all__'
