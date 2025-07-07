@@ -6,11 +6,12 @@ from django.contrib.auth.models import User
 
 class AthleteSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Athlete
-        fields = '__all__'
+        model = User
+        fields = ['id', 'username',  'first_name', 'last_name']
+
 
 class RunSerializer(serializers.ModelSerializer):
-    athlete = AthleteSerializer(read_only=True)
+    athlete = AthleteSerializer()
     class Meta:
         model = Run
         fields = '__all__'
