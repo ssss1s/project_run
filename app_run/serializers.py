@@ -1,6 +1,4 @@
 from rest_framework import serializers
-
-from the_athlete.models import Athlete
 from .models import Run
 from django.contrib.auth.models import User
 

@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'app_run',
-    'the_athlete'
 ]
 
 MIDDLEWARE = [
