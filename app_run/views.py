@@ -39,7 +39,7 @@ class RunStartAPIView(APIView):
 
         if run.status != RunStatus.INIT:
             return Response(
-                {"error": "Run can only be started from 'init' status"},
+                {"error": "Запуск может быть начат только со статуса init"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -57,20 +57,15 @@ class RunStopAPIView(APIView):
 
         if run.status != RunStatus.IN_PROGRESS:
             return Response(
-                {"error": "Запуск может быть остановлен только из состояния in_progress"},
+                {"error": "Run can only be stopped from 'in_progress' status"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         run.status = RunStatus.FINISHED
         run.save()
+
         return Response(
-            {
-                "status": "Запуск успешно завершен",
-                "details": {
-                    "run_id": run.id,
-                    "duration": str(run.updated_at - run.created_at)
-                }
-            },
+            {"status": "Run stopped successfully"},
             status=status.HTTP_200_OK
         )
 
