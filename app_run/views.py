@@ -11,12 +11,12 @@ from rest_framework.filters import SearchFilter
 class RunViewSet(viewsets.ModelViewSet):
     queryset = Run.objects.select_related()
     serializer_class = RunSerializer
-    filter_backends = [SearchFilter]
-    search_fields = ['last_name', 'first_name']
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.filter(is_superuser=False)
     serializer_class = UserSerializer
+    filter_backends = [SearchFilter]
+    search_fields = ['last_name', 'first_name']
 
 
     def get_queryset(self):
