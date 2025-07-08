@@ -5,11 +5,14 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from .models import Run
 from .serializers import RunSerializer, UserSerializer
+from rest_framework.filters import SearchFilter
 
 
 class RunViewSet(viewsets.ModelViewSet):
     queryset = Run.objects.select_related()
     serializer_class = RunSerializer
+    filter_backends = [SearchFilter]
+    search_fields = ['last_name', 'first_name']
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.filter(is_superuser=False)
