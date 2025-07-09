@@ -13,9 +13,11 @@ from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 
 class UserPagination(PageNumberPagination):
+    page_size = 5
     page_size_query_param = 'size'
+    max_page_size = 50
     def paginate_queryset(self, queryset, request, view=None):
-        if self.page_size_query_param in request.query_params:
+        if request.query_params.get(self.page_size_query_param):
             return super().paginate_queryset(queryset, request, view)
         return None
 
