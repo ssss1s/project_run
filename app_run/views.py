@@ -12,6 +12,9 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 
+class UserPagination(PageNumberPagination):
+    page_size_query_param = 'size'
+
 class RunPagination(PageNumberPagination):
     page_size = 5
     page_size_query_param = 'size'
@@ -31,7 +34,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['last_name', 'first_name']
     ordering_fields = ['date_joined']
-    pagination_class = RunPagination
+    pagination_class = UserPagination
 
     def get_queryset(self):
         qs = self.queryset
