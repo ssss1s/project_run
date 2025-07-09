@@ -14,6 +14,10 @@ from django.shortcuts import get_object_or_404
 
 class UserPagination(PageNumberPagination):
     page_size_query_param = 'size'
+    def paginate_queryset(self, queryset, request, view=None):
+        if self.page_size_query_param in request.query_params:
+            return super().paginate_queryset(queryset, request, view)
+        return None
 
 class RunPagination(PageNumberPagination):
     page_size = 5
