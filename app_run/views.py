@@ -1,4 +1,6 @@
 from django.conf import settings
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view
@@ -6,22 +8,30 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status
 from .models import Run, RunStatus
 from .serializers import UserSerializer
-from rest_framework.filters import SearchFilter
+from rest_framework.filters import SearchFilter, OrderingFilter
 from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 
-
+class RunPagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = 'size'
+    max_page_size = 50
 
 class RunViewSet(viewsets.ModelViewSet):
     queryset = Run.objects.select_related()
     serializer_class = RunSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['status', 'athlete']
+    ordering_fields =['created_at']
+    pagination_class = RunPagination
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.filter(is_superuser=False)
     serializer_class = UserSerializer
-    filter_backends = [SearchFilter]
+    filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['last_name', 'first_name']
-
+    ordering_fields = ['date_joined']
+    pagination_class = RunPagination
 
     def get_queryset(self):
         qs = self.queryset
@@ -57,7 +67,7 @@ class RunStopAPIView(APIView):
 
         if run.status != RunStatus.IN_PROGRESS:
             return Response(
-                {"error": "Run can only be stopped from 'in_progress' status"},
+                {"error": "Запуск может быть остановлен только из состояния in_progress"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -65,7 +75,7 @@ class RunStopAPIView(APIView):
         run.save()
 
         return Response(
-            {"status": "Run stopped successfully"},
+            {"status": "Запуск успешно остановлен"},
             status=status.HTTP_200_OK
         )
 
@@ -77,6 +87,7 @@ def company_info(request):
         'contacts': settings.CONTACTS,
     }
     return Response(details)
+
 
 
 
