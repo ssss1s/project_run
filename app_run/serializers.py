@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Run
+from .models import Run, RunStatus
 from django.contrib.auth.models import User
 
 class AthleteSerializer(serializers.ModelSerializer):
@@ -15,10 +15,11 @@ class RunSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
+    runs_finished=serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type']
+        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished']
 
     def get_type(self, obj):
             if obj.is_staff:
@@ -26,7 +27,10 @@ class UserSerializer(serializers.ModelSerializer):
             else:
                 return 'athlete'
 
+    def get_runs_finished(self, obj):
+        return obj.runs.filter(status=RunStatus.FINISHED).count()
 
+#Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
 
 
 #Создай endpoint api/users/ , с возможностью фильтра по полю type:

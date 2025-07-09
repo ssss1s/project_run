@@ -11,7 +11,7 @@ class RunStatus(models.TextChoices):
 class Run(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     comment = models.TextField()
-    athlete = models.ForeignKey(User, on_delete=models.CASCADE)
+    athlete = models.ForeignKey(User, related_name='runs', on_delete=models.CASCADE)
     status = models.CharField(max_length=12, choices=RunStatus.choices, default=RunStatus.INIT)
 
 
