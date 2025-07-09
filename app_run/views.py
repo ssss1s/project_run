@@ -25,6 +25,10 @@ class RunPagination(PageNumberPagination):
     page_size = 5
     page_size_query_param = 'size'
     max_page_size = 50
+    def paginate_queryset(self, queryset, request, view=None):
+        if request.query_params.get(self.page_size_query_param):
+            return super().paginate_queryset(queryset, request, view)
+        return None
 
 class RunViewSet(viewsets.ModelViewSet):
     queryset = Run.objects.select_related()
