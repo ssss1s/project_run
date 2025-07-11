@@ -1,4 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.response import Response
+from rest_framework import status
 from .models import AthleteInfo
 from .serializers import AthleteInfoSerializer
 from django.contrib.auth.models import User
@@ -18,5 +20,25 @@ class AthleteViewSet(ModelViewSet):
             defaults={'weight': None, 'goals': None}  # Указываем дефолтные значения
         )
         return athlete_info
+
+    def update(self, request, pk=None):
+        try:
+            user = User.objects.get(pk=pk)
+            athlete_info, created = AthleteInfo.objects.get_or_create(
+                Info=user,
+                defaults={'weight': None, 'goals': None}
+            )
+
+            serializer = AthleteInfoSerializer(athlete_info, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
 
 

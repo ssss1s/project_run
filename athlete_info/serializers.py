@@ -3,7 +3,7 @@ from athlete_info.models import AthleteInfo
 
 
 class AthleteInfoSerializer(serializers.ModelSerializer):
-    user_id = serializers.PrimaryKeyRelatedField(
+    user_id = serializers.IntegerField(
         source='Info.id',
         read_only=True
     )
@@ -11,6 +11,10 @@ class AthleteInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = AthleteInfo
         fields = ['id', 'user_id', 'weight', 'goals']
+        extra_kwargs = {
+            'weight': {'required': False, 'allow_null': True},
+            'goals': {'required': False, 'allow_null': True}
+        }
 
     def validate_weight(self, value):
         if value <= 0 or value >= 900:
