@@ -89,6 +89,19 @@ class RunStopAPIView(APIView):
         run.status = RunStatus.FINISHED
         run.save()
 
+        # Проверяем количество завершенных забегов у этого атлета
+        finished_runs_count = Run.objects.filter(
+            athlete=run.athlete,
+            status=RunStatus.FINISHED
+        ).count()
+
+        # Если это 10-й завершенный забег - создаем запись в ChallengeAthlete
+        if finished_runs_count == 10:
+            ChallengeAthlete.objects.create(
+                athlete=run.athlete,
+                full_name="Сделай 10 Забегов!"
+            )
+
         return Response(
             {"status": "Запуск успешно остановлен"},
             status=status.HTTP_200_OK
