@@ -1,7 +1,11 @@
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status, viewsets
+
+from app_run.models import Run, RunStatus
 from .models import AthleteInfo, ChallengeAthlete
 from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer
 from django.contrib.auth.models import User
@@ -47,6 +51,56 @@ class ChallengeViewSet(viewsets.ModelViewSet):
     serializer_class = ChallengeAthleteSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['athlete']
+
+
+from django.db import connection
+from rest_framework import status
+from rest_framework.response import Response
+
+
+import logging
+logger = logging.getLogger(__name__)
+
+class StopRunView(APIView):
+    def post(self, request, run_id):
+        try:
+            with transaction.atomic():
+                # 1. Получаем забег
+                run = Run.objects.get(pk=run_id)
+                logger.info(f"Обрабатываем забег ID {run_id}. Текущий статус: {run.status}")
+
+                # 2. Проверяем статус
+                if run.status != 'finished':
+                    logger.warning(f"Неверный статус забега: {run.status}")
+                    return Response(...)
+
+                # 3. Подсчёт завершённых забегов
+                finished_runs = Run.objects.filter(
+                    athlete_id=run.athlete_id,
+                    status='finished'
+                ).count()
+                logger.info(f"Завершённых забегов: {finished_runs}")
+
+                # 4. Создание достижения
+                if finished_runs == 10:
+                    logger.info("Условие выполнено (10 забегов). Пытаемся создать запись...")
+                    try:
+                        obj = ChallengeAthlete.objects.create(
+                            athlete_id=run.athlete_id,
+                            full_name="Сделай 10 Забегов!"
+                        )
+                        logger.info(f"Запись создана! ID: {obj.id}")
+                    except Exception as e:
+                        logger.error(f"Ошибка создания: {str(e)}")
+                        raise
+
+                return Response(...)
+
+        except Exception as e:
+            logger.error(f"Ошибка в обработке: {str(e)}")
+            return Response(...)
+
+
 
 
 

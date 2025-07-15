@@ -12,6 +12,7 @@ from .serializers import UserSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
 class UserPagination(PageNumberPagination):
     page_size = 5
@@ -103,50 +104,6 @@ def company_info(request):
     return Response(details)
 
 
-
-class StopRunView(APIView):
-    def post(self, request, run_id):
-        try:
-            run = Run.objects.select_related('athlete').get(pk=run_id)
-            print(f"\n--- Начало обработки остановки забега {run.id} ---")
-            print(f"Текущий статус: {run.status}")
-            print(f"Атлет: {run.athlete.id}")
-
-            if run.status != RunStatus.IN_PROGRESS:
-                print("ОШИБКА: Забег не в статусе IN_PROGRESS")
-                return Response(...)
-
-            # Точный подсчёт перед изменением
-            finished_before = Run.objects.filter(
-                athlete=run.athlete,
-                status=RunStatus.FINISHED
-            ).count()
-            print(f"Завершённых забегов до остановки: {finished_before}")
-
-            run.status = RunStatus.FINISHED
-            run.save()
-            print(f"Забег {run.id} переведён в FINISHED")
-
-            # Проверка условия
-            if finished_before == 9:
-                print("УСЛОВИЕ ВЫПОЛНЕНО: Было 9 завершённых забегов")
-                challenge, created = ChallengeAthlete.objects.get_or_create(
-                    athlete=run.athlete,
-                    full_name="Сделай 10 Забегов!",
-                    defaults={'athlete': run.athlete, 'full_name': "Сделай 10 Забегов!"}
-                )
-                if created:
-                    print(f"СОЗДАН Challenge ID: {challenge.id}")
-                else:
-                    print("Challenge уже существовал")
-            else:
-                print(f"Условие не выполнено (было {finished_before}, нужно 9)")
-
-            return Response(...)
-
-        except Exception as e:
-            print(f"КРИТИЧЕСКАЯ ОШИБКА: {str(e)}")
-            return Response(...)
 
 
 

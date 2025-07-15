@@ -1,6 +1,4 @@
 from rest_framework import serializers
-
-from athlete_info.models import ChallengeAthlete
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
 
@@ -30,33 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
                 return 'athlete'
 
     def get_runs_finished(self, obj):
-        finished_runs = obj.runs.filter(status=RunStatus.FINISHED).count()
-
-        if (
-                finished_runs == 10
-                and not ChallengeAthlete.objects.filter(athlete=obj).exists()
-        ):
-            # Создаём запись с кастомным full_name
-            ChallengeAthlete.objects.create(
-                full_name="Сделай 10 Забегов!",  # Жёстко заданное значение
-                athlete=obj
-            )
-
-            # Если нужно вызвать StopRunView.post()
-            from django.test import RequestFactory
-            from .views import StopRunView
-
-            # Создаём фейковый запрос (может потребоваться донастройка)
-            request = RequestFactory().post(
-                '/fake-path/',  # Любой URL (не влияет на логику)
-                data={'user_id': obj.id}  # Передаём данные, если нужно
-            )
-            request.user = obj  # Если вьюха требует аутентификации
-
-            # Вызываем вьюху
-            StopRunView.as_view()(request)  # Или StopRunView().post(request)
-
-        return finished_runs
+        return obj.runs.filter(status=RunStatus.FINISHED).count()
 
 #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
 
