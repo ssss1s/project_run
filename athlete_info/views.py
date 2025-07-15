@@ -1,10 +1,12 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
-from rest_framework import status
-from .models import AthleteInfo
-from .serializers import AthleteInfoSerializer
+from rest_framework import status, viewsets
+from .models import AthleteInfo, ChallengeAthlete
+from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+
 
 
 
@@ -39,6 +41,15 @@ class AthleteViewSet(ModelViewSet):
                 {'detail': 'User not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+class ChallengeViewSet(viewsets.ModelViewSet):
+    queryset = ChallengeAthlete.objects.all()
+    serializer_class = ChallengeAthleteSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['athlete']
+
+
+
 
 
 
