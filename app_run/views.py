@@ -104,36 +104,6 @@ def company_info(request):
 
 
 
-class StopRunView(APIView):
-    def post(self, request, run_id):
-        try:
-            run = Run.objects.get(id=run_id, athlete=request.user)
-            run.status = 'finished'  # Используйте тот же формат, что в БД!
-            run.save()
-
-            runs_finished = request.user.runs.filter(status='finished').count()
-
-            if runs_finished >= 10:
-                ChallengeAthlete.objects.get_or_create(
-                    full_name="Сделай 10 Забегов!",
-                    athlete=request.user
-                )
-
-            return Response({
-                "status": "Запуск успешно остановлен",
-                "finished_runs": runs_finished
-            }, status=status.HTTP_200_OK)
-
-        except Run.DoesNotExist:
-            return Response({
-                "error": "Пробежка не найдена."
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        except Exception as e:
-            return Response({
-                "error": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 
