@@ -15,62 +15,60 @@ class PositionSerializer(serializers.ModelSerializer):
             'longitude': {'required': True}
         }
 
-    def validate_latitude(self, value):
-        try:
-            lat = float(value)
-            if not -90.0 <= lat <= 90.0:
-                raise serializers.ValidationError({
-                    'latitude': 'Latitude must be between -90 and 90',
-                    "status_code": status.HTTP_400_BAD_REQUEST
-                }
-
-                )
-            return Decimal(str(round(lat, 4)))
-
-        except (TypeError, ValueError):
-            raise serializers.ValidationError({
-                "message": "Некорректное значение широты. Должно быть числом.",
-                "status_code": status.HTTP_400_BAD_REQUEST
-            }
-            )
-
     def validate(self, data):
+        """Общая валидация с правильной обработкой ошибок Pydantic"""
         try:
-            pydantic_data = PositionCreate(
+            # Валидация через Pydantic
+            PositionCreate(
                 run=data['run'].id,
                 latitude=float(data['latitude']),
                 longitude=float(data['longitude'])
             )
 
+            # Дополнительная проверка статуса забега
             if data['run'].status != 'in_progress':
                 raise serializers.ValidationError({
                     'run': {
                         "status_code": status.HTTP_400_BAD_REQUEST,
-                        "message": "Забег должен быть в статусе 'in_progress'"
+                        "message": "Забег должен быть в статусе 'in_progress'",
+                        "code": "invalid_run_status"
                     }
                 })
-
 
             return data
 
         except ValueError as e:
+            # Обработка ошибок Pydantic
             error_msg = str(e)
-            if 'latitude' in error_msg:
+            if "Забег должен быть в статусе 'in_progress'" in error_msg:
+                raise serializers.ValidationError({
+                    'run': {
+                        "status_code": status.HTTP_400_BAD_REQUEST,
+                        "message": "Забег должен быть в статусе 'in_progress'",
+                        "code": "invalid_run_status"
+                    }
+                })
+            elif 'latitude' in error_msg:
                 raise serializers.ValidationError({
                     'latitude': {
                         "status_code": status.HTTP_400_BAD_REQUEST,
-                        "message":error_msg.split('\n')[0]}
+                        "message": error_msg.split('\n')[0],
+                        "code": "invalid_latitude"
+                    }
                 })
-            raise serializers.ValidationError(error_msg)
+            elif 'longitude' in error_msg:
+                raise serializers.ValidationError({
+                    'longitude': {
+                        "status_code": status.HTTP_400_BAD_REQUEST,
+                        "message": error_msg.split('\n')[0],
+                        "code": "invalid_longitude"
+                    }
+                })
 
-        except Exception as e:
-            raise serializers.ValidationError(str(e))
-
-    def to_representation(self, instance):
-        response_data = {
-            'id': instance.id,
-            'run': instance.run_id,
-            'latitude': float(instance.latitude),
-            'longitude': float(instance.longitude)
-        }
-        return PositionResponse(**response_data).dict()
+            raise serializers.ValidationError({
+                "non_field_errors": {
+                    "status_code": status.HTTP_400_BAD_REQUEST,
+                    "message": error_msg,
+                    "code": "validation_error"
+                }
+            })
