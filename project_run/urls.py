@@ -29,7 +29,7 @@ router.register('api/runs', RunViewSet)
 router.register('api/users', UserViewSet)
 router.register('api/athlete_info', AthleteViewSet, basename='athlete-info')
 router.register('api/challenges', ChallengeViewSet, basename='challenges')
-router.register(r'positions', PositionViewSet, basename='position')
+router.register(r'api/positions', PositionViewSet, basename='position')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
