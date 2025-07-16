@@ -1,4 +1,4 @@
-from rest_framework import serializers
+from rest_framework import serializers, status
 from decimal import Decimal
 from .models import Position
 from .schemas import PositionCreate, PositionResponse
@@ -19,14 +19,19 @@ class PositionSerializer(serializers.ModelSerializer):
         try:
             lat = float(value)
             if not -90.0 <= lat <= 90.0:
-                raise serializers.ValidationError(
-                    "Широта должна быть между -90.0 и 90.0 градусами"
+                raise serializers.ValidationError({
+                    'latitude': 'Latitude must be between -90 and 90',
+                    "status_code": status.HTTP_400_BAD_REQUEST
+                }
+
                 )
             return Decimal(str(round(lat, 4)))
 
         except (TypeError, ValueError):
-            raise serializers.ValidationError(
-                "Некорректное значение широты. Должно быть числом."
+            raise serializers.ValidationError({
+                "message": "Некорректное значение широты. Должно быть числом.",
+                "status_code": status.HTTP_400_BAD_REQUEST
+            }
             )
 
     def validate(self, data):
@@ -39,8 +44,12 @@ class PositionSerializer(serializers.ModelSerializer):
 
             if data['run'].status != 'in_progress':
                 raise serializers.ValidationError({
-                    'run': "Забег должен быть в статусе 'in_progress'"
+                    'run': {
+                        "status_code": status.HTTP_400_BAD_REQUEST,
+                        "message": "Забег должен быть в статусе 'in_progress'"
+                    }
                 })
+
 
             return data
 
@@ -48,7 +57,9 @@ class PositionSerializer(serializers.ModelSerializer):
             error_msg = str(e)
             if 'latitude' in error_msg:
                 raise serializers.ValidationError({
-                    'latitude': error_msg.split('\n')[0]
+                    'latitude': {
+                        "status_code": status.HTTP_400_BAD_REQUEST,
+                        "message":error_msg.split('\n')[0]}
                 })
             raise serializers.ValidationError(error_msg)
 
