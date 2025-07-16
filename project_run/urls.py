@@ -22,13 +22,14 @@ from app_run.views import company_info, UserViewSet, RunStartAPIView, RunStopAPI
 from rest_framework.routers import DefaultRouter
 from app_run.views import RunViewSet
 from athlete_info.views import AthleteViewSet, ChallengeViewSet
-
+from latitudelongitude.views import PositionViewSet
 
 router = DefaultRouter()
 router.register('api/runs', RunViewSet)
 router.register('api/users', UserViewSet)
 router.register('api/athlete_info', AthleteViewSet, basename='athlete-info')
 router.register('api/challenges', ChallengeViewSet, basename='challenges')
+router.register(r'positions', PositionViewSet, basename='position')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

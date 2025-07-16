@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'app_run',
-    'athlete_info'
+    'athlete_info',
+    'latitudelongitude'
 ]
 
 MIDDLEWARE = [
