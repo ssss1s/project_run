@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
+from decimal import Decimal
 
 class AthleteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,27 +10,46 @@ class AthleteSerializer(serializers.ModelSerializer):
 
 
 class RunSerializer(serializers.ModelSerializer):
-    athlete_data = AthleteSerializer(source='athlete', read_only=True)
-    distance = serializers.SerializerMethodField()
+    athlete_data = serializers.SerializerMethodField(read_only=True)
+    distance = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        rounding='ROUND_HALF_UP',
+        coerce_to_string=False
+    )
 
     class Meta:
         model = Run
         fields = '__all__'
         extra_kwargs = {
-            'athlete': {'write_only': True}  # Скрываем в выводе, так как есть athlete_data
+            'athlete': {'write_only': True}
         }
-    def get_distance(self, obj):
-        return round(obj.distance)
 
     def get_athlete_data(self, obj):
-        """Возвращает сериализованные данные пользователя."""
+        """Сериализуем данные атлета с помощью AthleteSerializer."""
         return AthleteSerializer(obj.athlete).data
 
     def to_representation(self, instance):
-        data = super().to_representation(instance)
-        return data
+        """Переопределяем представление для дополнительного контроля."""
+        representation = super().to_representation(instance)
+
+        # Обеспечиваем корректное округление distance
+        if 'distance' in representation and representation['distance'] is not None:
+            representation['distance'] = round(Decimal(representation['distance']), 2)
+
+        return representation
 
     def to_internal_value(self, data):
+        """Обрабатываем входящие данные перед валидацией."""
+        # Приводим distance к Decimal перед валидацией
+        if 'distance' in data and data['distance'] is not None:
+            try:
+                data['distance'] = Decimal(str(data['distance'])).quantize(Decimal('0.00'))
+            except (ValueError, TypeError):
+                raise serializers.ValidationError({
+                    'distance': 'Must be a valid decimal number'
+                })
+
         return super().to_internal_value(data)
 
 class UserSerializer(serializers.ModelSerializer):

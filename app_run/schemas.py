@@ -1,7 +1,7 @@
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 class RunStatusPydantic(str, Enum):
     INIT = "init"
@@ -9,11 +9,23 @@ class RunStatusPydantic(str, Enum):
     FINISHED = "finished"
 
 
+
 class RunBase(BaseModel):
     comment: str
     athlete: int
     status: RunStatusPydantic = RunStatusPydantic.INIT
-    distance: float = Field(default=0.0, ge=0)  # Заменили Decimal на float
+    distance: Decimal = Field(default=Decimal('0.00'), ge=Decimal('0.00'))
+
+    @field_validator('distance', mode='before')
+    def parse_distance(cls, value):
+        try:
+            if isinstance(value, (int, float)):
+                return Decimal(str(round(value, 2)))
+            if isinstance(value, Decimal):
+                return value.quantize(Decimal('0.00'))
+            return Decimal('0.00')
+        except (ValueError, TypeError, InvalidOperation):
+            return Decimal('0.00')
 
 
 class RunCreate(RunBase):
