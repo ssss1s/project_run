@@ -16,8 +16,8 @@ class RunSerializer(serializers.ModelSerializer):
         max_digits=6,
         decimal_places=3,
         rounding='ROUND_HALF_UP',
-        coerce_to_string=False,  # Сериализует Decimal в строку
-        localize=False  # Отключает локализацию (запятые/точки)
+        default=0,
+        coerce_to_string=True,  # Сериализует Decimal в строку
     )
 
     class Meta:
@@ -38,7 +38,7 @@ class RunSerializer(serializers.ModelSerializer):
         # Явное преобразование в строку (дополнительная страховка)
         if 'distance' in representation and representation['distance'] is not None:
             representation['distance'] = str(
-                Decimal(representation['distance']).quantize(Decimal('0.00')))
+                Decimal(representation['distance']).quantize(Decimal('0.000')))
 
         return representation
 
