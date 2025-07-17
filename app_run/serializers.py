@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+
 
 class AthleteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -15,7 +16,8 @@ class RunSerializer(serializers.ModelSerializer):
         max_digits=6,
         decimal_places=2,
         rounding='ROUND_HALF_UP',
-        coerce_to_string=False
+        coerce_to_string=True,  # Сериализует Decimal в строку
+        localize=False  # Отключает локализацию (запятые/точки)
     )
 
     class Meta:
@@ -30,24 +32,25 @@ class RunSerializer(serializers.ModelSerializer):
         return AthleteSerializer(obj.athlete).data
 
     def to_representation(self, instance):
-        """Переопределяем представление для дополнительного контроля."""
+        """Переопределяем представление для строкового distance."""
         representation = super().to_representation(instance)
 
-        # Обеспечиваем корректное округление distance
+        # Явное преобразование в строку (дополнительная страховка)
         if 'distance' in representation and representation['distance'] is not None:
-            representation['distance'] = round(Decimal(representation['distance']), 2)
+            representation['distance'] = str(
+                Decimal(representation['distance']).quantize(Decimal('0.00')))
 
         return representation
 
     def to_internal_value(self, data):
         """Обрабатываем входящие данные перед валидацией."""
-        # Приводим distance к Decimal перед валидацией
         if 'distance' in data and data['distance'] is not None:
             try:
+                # Принимаем и строки, и числа
                 data['distance'] = Decimal(str(data['distance'])).quantize(Decimal('0.00'))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, InvalidOperation):
                 raise serializers.ValidationError({
-                    'distance': 'Must be a valid decimal number'
+                    'distance': 'Должно быть числом с максимум 2 знаками после запятой'
                 })
 
         return super().to_internal_value(data)
