@@ -14,9 +14,9 @@ class RunSerializer(serializers.ModelSerializer):
     athlete_data = serializers.SerializerMethodField(read_only=True)
     distance = serializers.DecimalField(
         max_digits=6,
-        decimal_places=2,
+        decimal_places=3,
         rounding='ROUND_HALF_UP',
-        coerce_to_string=True,  # Сериализует Decimal в строку
+        coerce_to_string=False,  # Сериализует Decimal в строку
         localize=False  # Отключает локализацию (запятые/точки)
     )
 
