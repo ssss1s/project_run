@@ -91,7 +91,7 @@ class RunStopAPIView(APIView):
 
             # Рассчитываем общее расстояние по всем точкам
             positions = Position.objects.filter(run=run).order_by('id')
-            total_distance = 0.0
+            total_distance_meters = 0.0
 
             if positions.count() > 1:
                 for i in range(1, positions.count()):
@@ -101,11 +101,14 @@ class RunStopAPIView(APIView):
                         (prev_pos.latitude, prev_pos.longitude),
                         (curr_pos.latitude, curr_pos.longitude)
                     ).meters
-                    total_distance += segment_distance
+                    total_distance_meters += segment_distance
+
+            # Конвертируем метры в километры и округляем
+            total_distance_km = round(total_distance_meters / 1000, 2)
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = total_distance
+            run.distance = total_distance_km  # Сохраняем в километрах
             run.save()
 
             # Проверяем количество завершенных забегов
@@ -123,7 +126,7 @@ class RunStopAPIView(APIView):
 
             return Response({
                 "status": "Запуск успешно остановлен",
-                "distance": total_distance,
+                "distance": total_distance_km,  # Возвращаем в километрах
                 "points_count": positions.count()
             }, status=status.HTTP_200_OK)
 
