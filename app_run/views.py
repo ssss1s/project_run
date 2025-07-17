@@ -1,5 +1,6 @@
 from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
+from geopy.distance import geodesic
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from django.contrib.auth.models import User
@@ -7,6 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import viewsets, status
 from athlete_info.models import ChallengeAthlete
+from latitudelongitude.models import Position
 from .models import Run, RunStatus
 from .serializers import UserSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -78,34 +80,52 @@ class RunStartAPIView(APIView):
 
 class RunStopAPIView(APIView):
     def post(self, request, run_id):
-        run = get_object_or_404(Run, pk=run_id)
+        with transaction.atomic():
+            run = get_object_or_404(Run.objects.select_for_update(), pk=run_id)
 
-        if run.status != RunStatus.IN_PROGRESS:
-            return Response(
-                {"error": "Запуск может быть остановлен только из состояния in_progress"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if run.status != RunStatus.IN_PROGRESS:
+                return Response(
+                    {"error": "Запуск может быть остановлен только из состояния in_progress"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        run.status = RunStatus.FINISHED
-        run.save()
+            # Рассчитываем общее расстояние по всем точкам
+            positions = Position.objects.filter(run=run).order_by('id')
+            total_distance = 0.0
 
-        # Проверяем количество завершенных забегов у этого атлета
-        finished_runs_count = Run.objects.filter(
-            athlete=run.athlete,
-            status=RunStatus.FINISHED
-        ).count()
+            if positions.count() > 1:
+                for i in range(1, positions.count()):
+                    prev_pos = positions[i - 1]
+                    curr_pos = positions[i]
+                    segment_distance = geodesic(
+                        (prev_pos.latitude, prev_pos.longitude),
+                        (curr_pos.latitude, curr_pos.longitude)
+                    ).meters
+                    total_distance += segment_distance
 
-        # Если это 10-й завершенный забег - создаем запись в ChallengeAthlete
-        if finished_runs_count == 10:
-            ChallengeAthlete.objects.create(
+            # Обновляем забег
+            run.status = RunStatus.FINISHED
+            run.distance = total_distance
+            run.save()
+
+            # Проверяем количество завершенных забегов
+            finished_runs_count = Run.objects.filter(
                 athlete=run.athlete,
-                full_name="Сделай 10 Забегов!"
-            )
+                status=RunStatus.FINISHED
+            ).count()
 
-        return Response(
-            {"status": "Запуск успешно остановлен"},
-            status=status.HTTP_200_OK
-        )
+            # Награда за 10 забегов
+            if finished_runs_count == 10:
+                ChallengeAthlete.objects.create(
+                    athlete=run.athlete,
+                    full_name="Сделай 10 Забегов!"
+                )
+
+            return Response({
+                "status": "Запуск успешно остановлен",
+                "distance": total_distance,
+                "points_count": positions.count()
+            }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def company_info(request):

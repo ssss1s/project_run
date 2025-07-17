@@ -1,6 +1,4 @@
 from pydantic import BaseModel, Field, validator
-from typing import Union
-from django.db import models
 from enum import Enum
 
 

@@ -7,11 +7,27 @@ class AthleteSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username',  'first_name', 'last_name']
 
+
 class RunSerializer(serializers.ModelSerializer):
     athlete_data = AthleteSerializer(source='athlete', read_only=True)
+
     class Meta:
         model = Run
         fields = '__all__'
+        extra_kwargs = {
+            'athlete': {'write_only': True}  # Скрываем в выводе, так как есть athlete_data
+        }
+
+    def get_athlete_data(self, obj):
+        """Возвращает сериализованные данные пользователя."""
+        return AthleteSerializer(obj.athlete).data
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        return data
+
+    def to_internal_value(self, data):
+        return super().to_internal_value(data)
 
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()

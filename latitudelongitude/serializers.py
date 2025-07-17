@@ -1,11 +1,11 @@
 from rest_framework import serializers, status
-from decimal import Decimal
 from .models import Position
-from .schemas import PositionCreate, PositionResponse
-
+from .schemas import PositionCreate
 
 
 class PositionSerializer(serializers.ModelSerializer):
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
     class Meta:
         model = Position
         fields = ['id', 'run', 'latitude', 'longitude']
