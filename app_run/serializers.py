@@ -10,6 +10,7 @@ class AthleteSerializer(serializers.ModelSerializer):
 
 class RunSerializer(serializers.ModelSerializer):
     athlete_data = AthleteSerializer(source='athlete', read_only=True)
+    distance = serializers.SerializerMethodField()
 
     class Meta:
         model = Run
@@ -17,6 +18,8 @@ class RunSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'athlete': {'write_only': True}  # Скрываем в выводе, так как есть athlete_data
         }
+    def get_distance(self, obj):
+        return round(obj.distance / 1000, 2)
 
     def get_athlete_data(self, obj):
         """Возвращает сериализованные данные пользователя."""
