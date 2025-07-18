@@ -59,7 +59,6 @@ class RunSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
     runs_finished=serializers.SerializerMethodField()
-    runs_distance = serializers.SerializerMethodField()
 
     class Meta:
         model = User
