@@ -74,11 +74,14 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.runs.filter(status=RunStatus.FINISHED).count()
 
     def get_runs_distance(self, obj):
-        total_distance = sum(run.distance for run in obj.runs.all() if run.distance is not None)
-        return total_distance
+        total = sum(
+            float(run.distance) for run in obj.runs.all()
+            if run.distance is not None
+        )
+        return min(total, 9999.99)
 
 
-#Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
+    #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
 
 
 #Создай endpoint api/users/ , с возможностью фильтра по полю type:
