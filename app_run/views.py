@@ -93,9 +93,23 @@ class RunStopAPIView(APIView):
             positions = Position.objects.filter(run=run).order_by('id')
             total_distance_meters = 0.0
 
+            if positions.count() > 1:
+                for i in range(1, positions.count()):
+                    prev_pos = positions[i - 1]
+                    curr_pos = positions[i]
+                    if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
+                        continue
+                    segment_distance = geodesic(
+                        (prev_pos.latitude, prev_pos.longitude),
+                        (curr_pos.latitude, curr_pos.longitude)
+                    ).meters
+                    total_distance_meters += segment_distance
+
+            total_distance_km = round(total_distance_meters / 1000, 2)
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
+            run.distance = total_distance_km
             run.save()
 
             # Проверяем количество завершенных забегов
