@@ -1,11 +1,9 @@
+from django.db.models.aggregates import Sum
 from rest_framework import serializers
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
 from decimal import Decimal, InvalidOperation
-from django.db.models import Sum
-import logging  # Добавляем импорт
 
-logger = logging.getLogger(__name__)  # Создаем логгер
 
 class AthleteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,7 +14,7 @@ class AthleteSerializer(serializers.ModelSerializer):
 class RunSerializer(serializers.ModelSerializer):
     athlete_data = serializers.SerializerMethodField(read_only=True)
     distance = serializers.DecimalField(
-        max_digits=100,
+        max_digits=6,
         decimal_places=3,
         rounding='ROUND_HALF_UP',
         default=0,
@@ -65,7 +63,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished', 'runs_distance']
+        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished']
 
     def get_type(self, obj):
             if obj.is_staff:
@@ -76,42 +74,10 @@ class UserSerializer(serializers.ModelSerializer):
     def get_runs_finished(self, obj):
         return obj.runs.filter(status=RunStatus.FINISHED).count()
 
-    def get_runs_distance(self, obj):
-        try:
-            # Получаем сумму дистанций
-            result = obj.runs.aggregate(total=Sum('distance'))
-            total = result['total']
-
-            # Обработка None значения
-            if total is None:
-                return "0.000"
-
-            # Проверка типа данных
-            if not isinstance(total, (Decimal, float, int)):
-                raise ValueError(f"Некорректный тип данных расстояния: {type(total)}")
-
-            # Преобразование в Decimal для точного округления
-            try:
-                decimal_total = Decimal(str(total))
-            except (InvalidOperation, ValueError) as e:
-                raise ValueError(f"Невозможно преобразовать значение '{total}' в Decimal") from e
-
-            # Валидация диапазона значений
-            if decimal_total < 0:
-                raise ValueError("Дистанция не может быть отрицательной")
-
-            # Округление до 3 знаков и форматирование
-            rounded_total = decimal_total.quantize(Decimal('0.000'))
-            return f"{rounded_total:.3f}"
-
-        except Exception as e:
-            # Логирование ошибки для отладки
-            logger.error(f"Ошибка при расчете дистанции для пользователя {obj.id}: {str(e)}")
-            # Возвращаем значение по умолчанию в продакшене
-            return "0.000"  # Или можно пробросить ошибку дальше
 
 
-        #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
+
+    #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
 
 
 #Создай endpoint api/users/ , с возможностью фильтра по полю type:

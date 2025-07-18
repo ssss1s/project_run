@@ -1,11 +1,7 @@
-from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status, viewsets
-
-from app_run.models import Run, RunStatus
 from .models import AthleteInfo, ChallengeAthlete
 from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer
 from django.contrib.auth.models import User
