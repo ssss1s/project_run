@@ -1,3 +1,4 @@
+from django.db.models.aggregates import Sum
 from rest_framework import serializers
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
@@ -74,11 +75,7 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.runs.filter(status=RunStatus.FINISHED).count()
 
     def get_runs_distance(self, obj):
-        total = sum(
-            float(run.distance) for run in obj.runs.all()
-            if run.distance is not None
-        )
-        return min(total, 9999.99)
+        return obj.runs.aggregate(total=Sum('distance'))['total'] or 0
 
 
     #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
