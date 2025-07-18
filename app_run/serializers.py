@@ -14,7 +14,7 @@ class AthleteSerializer(serializers.ModelSerializer):
 class RunSerializer(serializers.ModelSerializer):
     athlete_data = serializers.SerializerMethodField(read_only=True)
     distance = serializers.DecimalField(
-        max_digits=6,
+        max_digits=100,
         decimal_places=3,
         rounding='ROUND_HALF_UP',
         default=0,
