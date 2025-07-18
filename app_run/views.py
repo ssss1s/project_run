@@ -97,38 +97,62 @@ class RunStopAPIView(APIView):
                 for i in range(1, positions.count()):
                     prev_pos = positions[i - 1]
                     curr_pos = positions[i]
+                    if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
+                        continue
                     segment_distance = geodesic(
                         (prev_pos.latitude, prev_pos.longitude),
                         (curr_pos.latitude, curr_pos.longitude)
                     ).meters
                     total_distance_meters += segment_distance
 
-            # Конвертируем метры в километры и округляем
             total_distance_km = round(total_distance_meters / 1000, 2)
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = total_distance_km  # Сохраняем в километрах
+            run.distance = total_distance_km
             run.save()
 
             # Проверяем количество завершенных забегов
-            finished_runs_count = Run.objects.filter(
+            finished_runs = Run.objects.filter(
                 athlete=run.athlete,
                 status=RunStatus.FINISHED
-            ).count()
+            )
+            finished_runs_count = finished_runs.count()
+
+            # Проверяем сумму дистанций
+            runs_distance_sum = sum(
+                r.distance for r in finished_runs
+                if r.distance is not None
+            )
 
             # Награда за 10 забегов
-            if finished_runs_count == 10:
+            if finished_runs_count == 10 and not ChallengeAthlete.objects.filter(
+                athlete=run.athlete,
+                full_name="Сделай 10 Забегов!"
+            ).exists():
                 ChallengeAthlete.objects.create(
                     athlete=run.athlete,
                     full_name="Сделай 10 Забегов!"
                 )
 
+            # Награда за 50 км
+            if runs_distance_sum >= 50 and not ChallengeAthlete.objects.filter(
+                athlete=run.athlete,
+                full_name="Пробеги 50 километров!"
+            ).exists():
+                ChallengeAthlete.objects.create(
+                    athlete=run.athlete,
+                    full_name="Пробеги 50 километров!"
+                )
+
             return Response({
                 "status": "Запуск успешно остановлен",
-                "distance": total_distance_km,  # Возвращаем в километрах
+                "distance": total_distance_km,
                 "points_count": positions.count()
             }, status=status.HTTP_200_OK)
+
+
+
 
 @api_view(['GET'])
 def company_info(request):

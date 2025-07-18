@@ -58,10 +58,11 @@ class RunSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
     runs_finished=serializers.SerializerMethodField()
+    runs_distance = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished']
+        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished', 'runs_distance']
 
     def get_type(self, obj):
             if obj.is_staff:
@@ -71,6 +72,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_runs_finished(self, obj):
         return obj.runs.filter(status=RunStatus.FINISHED).count()
+
+    def get_runs_distance(self, obj):
+        total_distance = sum(run.distance for run in obj.runs.all() if run.distance is not None)
+        return total_distance
+
 
 #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
 
