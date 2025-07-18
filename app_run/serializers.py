@@ -47,7 +47,7 @@ class RunSerializer(serializers.ModelSerializer):
         if 'distance' in data and data['distance'] is not None:
             try:
                 # Принимаем и строки, и числа
-                data['distance'] = Decimal(str(data['distance'])).quantize(Decimal('0.00'))
+                data['distance'] = Decimal(str(data['distance'])).quantize(Decimal('0.000'))
             except (ValueError, TypeError, InvalidOperation):
                 raise serializers.ValidationError({
                     'distance': 'Должно быть числом с максимум 2 знаками после запятой'
