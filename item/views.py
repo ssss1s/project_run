@@ -71,7 +71,7 @@ def upload_file(request):
                     "data": list(row)
                 })
 
-        return Response(results, status=201)
+        return Response(results, status=200)
 
     except Exception as e:
         return Response({"error": str(e)}, status=400)
