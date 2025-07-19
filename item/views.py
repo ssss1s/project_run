@@ -5,13 +5,11 @@ from rest_framework import status, viewsets
 from openpyxl import load_workbook
 from decimal import Decimal, InvalidOperation
 import re
-
-from item.models import CollectibleItem
-from item.serializers import CollectibleItemSerializer
+from .models import CollectibleItem  # Импорт вашей модели
+from .serializers import CollectibleItemSerializer
 
 
 def validate_value(value):
-    """Проверка значения value"""
     try:
         num = int(float(str(value)))
         return num >= 0
@@ -19,7 +17,6 @@ def validate_value(value):
         return False
 
 def validate_coordinate(value, coord_type):
-    """Проверка координат"""
     try:
         coord = Decimal(str(value)).quantize(Decimal('0.000000'))
         if coord_type == 'latitude':
@@ -29,7 +26,6 @@ def validate_coordinate(value, coord_type):
         return False
 
 def validate_url(url):
-    """Проверка URL"""
     url = str(url).strip()
     return (url.startswith(('http://', 'https://'))
             and len(url) >= 10
@@ -65,6 +61,15 @@ def upload_file(request):
             )
 
             if is_valid:
+                # Создание объекта для валидных данных
+                CollectibleItem.objects.create(
+                    name=str(row_data[0]),
+                    uid=str(row_data[1]),
+                    value=int(float(str(row_data[2]))),
+                    latitude=Decimal(str(row_data[3])),
+                    longitude=Decimal(str(row_data[4])),
+                    picture=str(row_data[5])
+                )
                 created_count += 1
             else:
                 invalid_rows.append(row_data)
