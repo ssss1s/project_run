@@ -1,66 +1,80 @@
-from decimal import InvalidOperation, Decimal
-
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from rest_framework import status, viewsets
+from rest_framework import  viewsets
 from openpyxl import load_workbook
 from .models import CollectibleItem
 from .serializers import CollectibleItemSerializer
+
 
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
 def upload_file(request):
     if 'file' not in request.FILES:
-        return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "No file provided"}, status=400)
 
     file = request.FILES['file']
     if not file.name.endswith('.xlsx'):
-        return Response({"error": "Only XLSX files are supported"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Only XLSX files are supported"}, status=400)
 
     try:
-        wb = load_workbook(file)
+        wb = load_workbook(filename=file)
         ws = wb.active
-        valid_items = []
-        invalid_rows = []
+        results = {
+            "total_rows": ws.max_row - 1,
+            "created": 0,
+            "errors": []
+        }
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            # Пропускаем заголовок и пустые строки
-            if row_idx == 1 or not any(row):
+            if row_idx == 1:  # Пропускаем заголовок
+                continue
+
+            if not any(row):  # Пропускаем пустые строки
                 continue
 
             try:
-                # Подготавливаем данные для валидации
+                # Правильное сопоставление столбцов (порядок как в Excel)
                 data = {
                     'name': str(row[0]) if row[0] is not None else '',
-                    'uid': str(row[1]),
-                    'latitude': Decimal(str(row[2])) if row[2] is not None else None,
-                    'longitude': Decimal(str(row[3])) if row[3] is not None else None,
-                    'picture': str(row[4]) if row[4] is not None else '',
-                    'value': int(row[5]) if row[5] is not None else None
+                    'uid': str(row[1]) if row[1] is not None else '',
+                    'value': row[2],  # 3-й столбец - Value
+                    'latitude': row[3],  # 4-й столбец - Latitude
+                    'longitude': row[4],  # 5-й столбец - Longitude
+                    'picture': str(row[5]) if row[5] is not None else ''  # 6-й столбец - Picture
                 }
 
-                # Валидация через сериализатор
                 serializer = CollectibleItemSerializer(data=data)
                 if serializer.is_valid():
-                    serializer.save()
-                    valid_items.append(serializer.data)
+                    try:
+                        serializer.save()
+                        results["created"] += 1
+                    except Exception as e:
+                        results["errors"].append({
+                            "row": row_idx,
+                            "error": f"Ошибка сохранения: {str(e)}",
+                            "data": list(row)
+                        })
                 else:
-                    invalid_rows.append(list(row))
+                    results["errors"].append({
+                        "row": row_idx,
+                        "error": "Невалидные данные",
+                        "details": serializer.errors,
+                        "data": list(row)
+                    })
 
-            except (ValueError, TypeError, InvalidOperation) as e:
-                invalid_rows.append(list(row))
+            except Exception as e:
+                results["errors"].append({
+                    "row": row_idx,
+                    "error": f"Ошибка обработки: {str(e)}",
+                    "data": list(row)
+                })
 
-        return Response({
-            "created": len(valid_items),
-            "invalid_rows": invalid_rows
-        }, status=status.HTTP_201_CREATED)
+        return Response(results, status=201)
 
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
+        return Response({"error": str(e)}, status=400)
 
 class CollectibleItemViewSet(viewsets.ModelViewSet):
     queryset = CollectibleItem.objects.all()
