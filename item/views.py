@@ -10,39 +10,30 @@ from item.models import CollectibleItem
 from item.serializers import CollectibleItemSerializer
 
 
-def parse_value(value):
-    """Convert value to integer"""
+def validate_value(value):
+    """Проверка значения value"""
     try:
         num = int(float(str(value)))
-        if num < 0:
-            raise ValueError
-        return num
+        return num >= 0
     except (ValueError, TypeError):
-        raise ValueError("Value must be a positive integer")
+        return False
 
-
-def parse_coordinate(value, coord_type):
-    """Validate and convert coordinates"""
+def validate_coordinate(value, coord_type):
+    """Проверка координат"""
     try:
         coord = Decimal(str(value)).quantize(Decimal('0.000000'))
-        if coord_type == 'latitude' and not -90 <= coord <= 90:
-            raise ValueError("Latitude must be between -90 and 90")
-        if coord_type == 'longitude' and not -180 <= coord <= 180:
-            raise ValueError("Longitude must be between -180 and 180")
-        return coord
+        if coord_type == 'latitude':
+            return -90 <= coord <= 90
+        return -180 <= coord <= 180
     except (InvalidOperation, ValueError, TypeError):
-        raise ValueError(f"Invalid {coord_type} value")
+        return False
 
-
-def validate_url(value):
-    """Validate and clean URL"""
-    url = str(value).strip()
-    if not re.match(r'^https?://', url, re.IGNORECASE):
-        url = f'https://{url}'
-    if len(url) < 10:
-        raise ValueError("URL is too short")
-    return url
-
+def validate_url(url):
+    """Проверка URL"""
+    url = str(url).strip()
+    return (url.startswith(('http://', 'https://'))
+            and len(url) >= 10
+            and ' ' not in url)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
@@ -58,42 +49,34 @@ def upload_file(request):
         wb = load_workbook(filename=file)
         ws = wb.active
         created_count = 0
-        invalid_rows = []  # Будет содержать списки невалидных строк
+        invalid_rows = []
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            if row_idx == 1:  # Skip header
+            if row_idx == 1 or not any(row):
                 continue
 
-            if not any(row):  # Skip empty rows
-                continue
+            row_data = list(row)
+            is_valid = (
+                len(row_data) >= 6 and
+                validate_value(row_data[2]) and
+                validate_coordinate(row_data[3], 'latitude') and
+                validate_coordinate(row_data[4], 'longitude') and
+                validate_url(row_data[5])
+            )
 
-            try:
-                # Validate and convert data
-                data = {
-                    'name': str(row[0])[:255] if row[0] is not None else '',
-                    'uid': str(row[1])[:100],
-                    'value': parse_value(row[2]),
-                    'latitude': parse_coordinate(row[3], 'latitude'),
-                    'longitude': parse_coordinate(row[4], 'longitude'),
-                    'picture': validate_url(row[5])
-                }
+            if is_valid:
                 created_count += 1
+            else:
+                invalid_rows.append(row_data)
 
-            except ValueError:
-                # Если есть ошибка валидации - добавляем сырые данные как список
-                invalid_rows.append(list(row))
-            except Exception:
-                invalid_rows.append(list(row))
-
-        response_data = [
-            {
+        return Response(
+            [{
                 'total_rows': ws.max_row - 1,
                 'created': created_count,
-                'invalid_rows': invalid_rows  # Теперь это список списков
-            }
-        ]
-
-        return Response(response_data, status=status.HTTP_200_OK)
+                'invalid_rows': invalid_rows
+            }],
+            status=status.HTTP_200_OK
+        )
 
     except Exception as e:
         return Response([{"error": str(e)}], status=status.HTTP_400_BAD_REQUEST)
