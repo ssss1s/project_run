@@ -5,6 +5,7 @@ from rest_framework import status, viewsets
 from openpyxl import load_workbook
 from decimal import Decimal, InvalidOperation
 import re
+
 from item.models import CollectibleItem
 from item.serializers import CollectibleItemSerializer
 
@@ -12,7 +13,10 @@ from item.serializers import CollectibleItemSerializer
 def parse_value(value):
     """Convert value to integer"""
     try:
-        return int(float(str(value)))
+        num = int(float(str(value)))
+        if num < 0:
+            raise ValueError
+        return num
     except (ValueError, TypeError):
         raise ValueError("Value must be a positive integer")
 
@@ -53,8 +57,8 @@ def upload_file(request):
     try:
         wb = load_workbook(filename=file)
         ws = wb.active
-        results = []
         created_count = 0
+        invalid_rows = []  # Будет содержать списки невалидных строк
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if row_idx == 1:  # Skip header
@@ -63,16 +67,8 @@ def upload_file(request):
             if not any(row):  # Skip empty rows
                 continue
 
-            row_data = list(row)
-            item = {
-                'row': row_idx,
-                'data': row_data,
-                'status': 'success',
-                'errors': None
-            }
-
             try:
-                # Prepare data with proper validation
+                # Validate and convert data
                 data = {
                     'name': str(row[0])[:255] if row[0] is not None else '',
                     'uid': str(row[1])[:100],
@@ -81,25 +77,19 @@ def upload_file(request):
                     'longitude': parse_coordinate(row[4], 'longitude'),
                     'picture': validate_url(row[5])
                 }
-
-                # Add to results if validation passed
-                results.append(item)
                 created_count += 1
 
-            except ValueError as e:
-                item['status'] = 'error'
-                item['errors'] = str(e)
-                results.append(item)
-            except Exception as e:
-                item['status'] = 'error'
-                item['errors'] = f"Processing error: {str(e)}"
-                results.append(item)
+            except ValueError:
+                # Если есть ошибка валидации - добавляем сырые данные как список
+                invalid_rows.append(list(row))
+            except Exception:
+                invalid_rows.append(list(row))
 
         response_data = [
             {
                 'total_rows': ws.max_row - 1,
                 'created': created_count,
-                'errors': [item for item in results if item['status'] == 'error']
+                'invalid_rows': invalid_rows  # Теперь это список списков
             }
         ]
 
