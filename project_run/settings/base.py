@@ -43,7 +43,8 @@ INSTALLED_APPS = [
 
     'app_run',
     'athlete_info',
-    'latitudelongitude'
+    'latitudelongitude',
+    'item'
 ]
 
 MIDDLEWARE = [

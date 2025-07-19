@@ -1,12 +1,8 @@
-from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from geopy.distance import geodesic
-from app_run import models
-from app_run.models import Run, RunStatus
 from .models import Position
 from .serializers import PositionSerializer
-from django.db.models import F
+
 
 class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all()

@@ -22,6 +22,7 @@ from app_run.views import company_info, UserViewSet, RunStartAPIView, RunStopAPI
 from rest_framework.routers import DefaultRouter
 from app_run.views import RunViewSet
 from athlete_info.views import AthleteViewSet, ChallengeViewSet
+from item.views import CollectibleItemViewSet, upload_file
 from latitudelongitude.views import PositionViewSet
 
 router = DefaultRouter()
@@ -29,11 +30,13 @@ router.register('api/runs', RunViewSet)
 router.register('api/users', UserViewSet)
 router.register('api/athlete_info', AthleteViewSet, basename='athlete-info')
 router.register('api/challenges', ChallengeViewSet, basename='challenges')
-router.register(r'api/positions', PositionViewSet, basename='position')
+router.register('api/positions', PositionViewSet, basename='position')
+router.register('api/collectible_item', CollectibleItemViewSet, basename='collectible-item')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/company_details/', company_info),
+    path('api/upload_file/', upload_file),
     path('api/runs/<int:run_id>/start/', RunStartAPIView.as_view(), name='run-start'),
     path('api/runs/<int:run_id>/stop/', RunStopAPIView.as_view(), name='run-stop'),
     path('', include(router.urls)),
