@@ -1,28 +1,34 @@
-from sqlite3 import IntegrityError
-
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from rest_framework import status, viewsets
 from openpyxl import load_workbook
 from decimal import Decimal, InvalidOperation
-from .models import CollectibleItem
-from .serializers import CollectibleItemSerializer
-
+from django.db import IntegrityError
+from item.models import CollectibleItem
+from rest_framework import status
+import re
 
 def validate_type(value):
-    valid_types = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']  # Все допустимые типы
+    valid_types = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']
     return str(value) in valid_types
 
 def validate_uid(value):
-    import re
-    return bool(re.match(r'^[a-f0-9]{8}$', str(value)))  # Проверка на 8 hex-символов
+    return bool(re.match(r'^[a-f0-9]{8}$', str(value)))
 
 def validate_value(value):
     try:
         num = int(float(str(value)))
-        return num > 0  # Только положительные числа
+        return num > 0
     except (ValueError, TypeError):
+        return False
+
+def validate_coordinate(value, coord_type):
+    try:
+        coord = Decimal(str(value)).quantize(Decimal('0.000000'))
+        if coord_type == 'latitude':
+            return -90 <= coord <= 90
+        return -180 <= coord <= 180
+    except (InvalidOperation, ValueError, TypeError):
         return False
 
 def validate_url(url):
@@ -32,7 +38,7 @@ def validate_url(url):
         len(url) >= 10 and
         ' ' not in url and
         '.' in url and
-        '::' not in url  # Блокируем некорректные URL
+        '::' not in url
     )
 
 @api_view(['POST'])
@@ -76,7 +82,7 @@ def upload_file(request):
                         picture=str(row_data[5])
                     )
                 except IntegrityError:
-                    invalid_rows.append(row_data)  # Если UID неуникальный
+                    invalid_rows.append(row_data)
             else:
                 invalid_rows.append(row_data)
 
