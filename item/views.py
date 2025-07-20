@@ -4,8 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets
 from openpyxl import load_workbook
 from decimal import Decimal, InvalidOperation
-import re
-from .models import CollectibleItem  # Импорт вашей модели
+from .models import CollectibleItem
 from .serializers import CollectibleItemSerializer
 
 
@@ -44,7 +43,6 @@ def upload_file(request):
     try:
         wb = load_workbook(filename=file)
         ws = wb.active
-        created_count = 0
         invalid_rows = []
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
@@ -54,6 +52,7 @@ def upload_file(request):
             row_data = list(row)
             is_valid = (
                 len(row_data) >= 6 and
+                str(row_data[0]) in ['Coin', 'Flag'] and  # Проверка типа
                 validate_value(row_data[2]) and
                 validate_coordinate(row_data[3], 'latitude') and
                 validate_coordinate(row_data[4], 'longitude') and
@@ -61,30 +60,22 @@ def upload_file(request):
             )
 
             if is_valid:
-                # Создание объекта для валидных данных
                 CollectibleItem.objects.create(
-                    name=str(row_data[0]),
+                    type=str(row_data[0]),
                     uid=str(row_data[1]),
                     value=int(float(str(row_data[2]))),
                     latitude=Decimal(str(row_data[3])),
                     longitude=Decimal(str(row_data[4])),
                     picture=str(row_data[5])
                 )
-                created_count += 1
             else:
-                invalid_rows.append(row_data)
+                invalid_rows.append(list(row_data))  # Важно: преобразуем tuple в list
 
-        return Response(
-            [{
-                'total_rows': ws.max_row - 1,
-                'created': created_count,
-                'invalid_rows': invalid_rows
-            }],
-            status=status.HTTP_200_OK
-        )
+        # Возвращаем ТОЛЬКО список невалидных строк (без мета-данных)
+        return Response(invalid_rows, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response([{"error": str(e)}], status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class CollectibleItemViewSet(viewsets.ModelViewSet):
     queryset = CollectibleItem.objects.all()
