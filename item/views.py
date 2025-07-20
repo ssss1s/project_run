@@ -77,7 +77,7 @@ def upload_file(request):
             if is_valid:
                 try:
                     CollectibleItem.objects.create(
-                        type=str(row_data[0]),
+                        name=str(row_data[0]),
                         uid=str(row_data[1]),
                         value=int(float(str(row_data[2]))),
                         latitude=Decimal(str(row_data[3])),
