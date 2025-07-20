@@ -10,15 +10,19 @@ import re
 
 from item.serializers import CollectibleItemSerializer
 
+# Строгий список разрешенных типов предметов
+VALID_ITEM_TYPES = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']
 
 def validate_type(value):
-    valid_types = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']
-    return str(value) in valid_types
+    """Проверка типа предмета"""
+    return str(value) in VALID_ITEM_TYPES
 
 def validate_uid(value):
-    return bool(re.match(r'^[a-f0-9]{8}$', str(value)))
+    """Строгая проверка формата UID (8 hex-символов)"""
+    return bool(re.fullmatch(r'^[a-f0-9]{8}$', str(value).lower()))
 
 def validate_value(value):
+    """Проверка значения (только положительные целые числа)"""
     try:
         num = int(float(str(value)))
         return num > 0
@@ -26,6 +30,7 @@ def validate_value(value):
         return False
 
 def validate_coordinate(value, coord_type):
+    """Проверка координат с точностью до 6 знаков"""
     try:
         coord = Decimal(str(value)).quantize(Decimal('0.000000'))
         if coord_type == 'latitude':
@@ -35,13 +40,16 @@ def validate_coordinate(value, coord_type):
         return False
 
 def validate_url(url):
+    """Строгая проверка URL"""
     url = str(url).strip()
     return (
         url.startswith(('http://', 'https://')) and
         len(url) >= 10 and
         ' ' not in url and
         '.' in url and
-        '::' not in url
+        '::' not in url and
+        not url.endswith(';') and  # Запрещаем точку с запятой в конце
+        re.match(r'^https?://[^\s/$.?#].[^\s]*$', url)  # Проверка общего формата URL
     )
 
 @api_view(['POST'])
@@ -58,14 +66,25 @@ def upload_file(request):
         wb = load_workbook(filename=file)
         ws = wb.active
         invalid_rows = []
+        seen_uids = set()  # Для отслеживания уникальности UID
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if row_idx == 1 or not any(row):
                 continue
 
             row_data = list(row)
+            if len(row_data) < 6:
+                invalid_rows.append(row_data)
+                continue
+
+            # Проверка уникальности UID в текущем файле
+            current_uid = str(row_data[1])
+            if current_uid in seen_uids:
+                invalid_rows.append(row_data)
+                continue
+            seen_uids.add(current_uid)
+
             is_valid = (
-                len(row_data) >= 6 and
                 validate_type(row_data[0]) and
                 validate_uid(row_data[1]) and
                 validate_value(row_data[2]) and
@@ -78,14 +97,14 @@ def upload_file(request):
                 try:
                     CollectibleItem.objects.create(
                         name=str(row_data[0]),
-                        uid=str(row_data[1]),
+                        uid=current_uid,
                         value=int(float(str(row_data[2]))),
                         latitude=Decimal(str(row_data[3])),
                         longitude=Decimal(str(row_data[4])),
-                        picture=str(row_data[5])
+                        picture=str(row_data[5]).rstrip(';')  # Удаляем точку с запятой в конце
                     )
                 except IntegrityError:
-                    invalid_rows.append(row_data)
+                    invalid_rows.append(row_data)  # Если UID уже существует в БД
             else:
                 invalid_rows.append(row_data)
 
