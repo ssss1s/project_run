@@ -25,11 +25,10 @@ def upload_file(request):
         ws = wb.active
         invalid_rows = []
 
-        # 1. Заранее загружаем ВСЕ необходимые данные из БД
-        existing_items = CollectibleItem.objects.all()
-        existing_uids = {item.uid for item in existing_items}
+        # 1. Заранее загружаем все существующие UID из БД
+        existing_uids = set(CollectibleItem.objects.values_list('uid', flat=True))
         valid_names = {'Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn'}
-        seen_uids_in_file = set()
+        seen_uids = set()
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if row_idx == 1 or not any(row):
@@ -37,53 +36,54 @@ def upload_file(request):
 
             row_data = list(row)
             try:
-                # 2. Базовый парсинг данных
-                name = str(row_data[0]).strip() if row_data[0] is not None else ''
-                uid = str(row_data[1]).strip().lower() if row_data[1] is not None else ''
+                # 2. Базовый парсинг данных с проверкой на None
+                if len(row_data) < 6 or any(cell is None for cell in row_data[:6]):
+                    raise ValueError("Все поля обязательны")
 
-                # 3. Жёсткая проверка имени
+                name = str(row_data[0]).strip()
+                uid = str(row_data[1]).strip().lower()
+
+                # 3. Жесткая проверка имени
                 if name not in valid_names:
-                    raise ValueError(f"Invalid item name: {name}")
+                    raise ValueError(f"Недопустимое имя: {name}")
 
                 # 4. Проверка формата UID
-                if not re.fullmatch(r'^[a-f0-9]{8}$', uid):
-                    raise ValueError("Invalid UID format")
+                if not (len(uid) == 8 and all(c in '0123456789abcdef' for c in uid)):
+                    raise ValueError("UID должен быть 8 hex-символов")
 
                 # 5. Проверка на дубликаты в файле
-                if uid in seen_uids_in_file:
-                    raise ValueError(f"Duplicate UID in file: {uid}")
+                if uid in seen_uids:
+                    raise ValueError(f"UID {uid} дублируется в файле")
 
                 # 6. Проверка на существование в БД
                 if uid in existing_uids:
-                    raise ValueError(f"UID already exists: {uid}")
+                    raise ValueError(f"UID {uid} уже существует")
 
-                seen_uids_in_file.add(uid)
+                seen_uids.add(uid)
 
                 # 7. Проверка value
                 try:
-                    value = int(float(row_data[2])) if row_data[2] is not None else 0
+                    value = int(float(str(row_data[2])))  # Двойное преобразование для безопасности
                     if value <= 0:
-                        raise ValueError("Value must be positive")
+                        raise ValueError("Значение должно быть > 0")
                 except (ValueError, TypeError):
-                    raise ValueError("Invalid value")
+                    raise ValueError("Некорректное значение")
 
                 # 8. Проверка координат
                 try:
-                    lat = Decimal(str(row_data[3]).replace(',', '.')) if row_data[3] is not None else None
-                    lon = Decimal(str(row_data[4]).replace(',', '.')) if row_data[4] is not None else None
-                    if lat is None or lon is None:
-                        raise ValueError("Missing coordinates")
+                    lat = Decimal(str(row_data[3]).replace(',', '.'))
+                    lon = Decimal(str(row_data[4]).replace(',', '.'))
                     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-                        raise ValueError("Invalid coordinates range")
-                except (InvalidOperation, TypeError, ValueError):
-                    raise ValueError("Invalid coordinates")
+                        raise ValueError("Координаты вне диапазона")
+                except (InvalidOperation, ValueError):
+                    raise ValueError("Некорректные координаты")
 
                 # 9. Проверка URL
-                picture = str(row_data[5]).strip().rstrip(';') if row_data[5] is not None else ''
-                if not picture.startswith(('http://', 'https://')):
-                    raise ValueError("Invalid URL")
+                picture = str(row_data[5]).strip().rstrip(';')
+                if not (picture.startswith(('http://', 'https://')) and ' ' not in picture):
+                    raise ValueError("Некорректный URL")
 
-                # 10. Если все проверки пройдены - создаём объект
+                # Если все проверки пройдены - создаем объект
                 CollectibleItem.objects.create(
                     name=name,
                     uid=uid,
