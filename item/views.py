@@ -24,19 +24,21 @@ def upload_file(request):
     try:
         wb = load_workbook(filename=file)
         ws = wb.active
-        invalid_rows_data = []  # Будем хранить только данные невалидных строк
+        invalid_rows_data = []
         seen_uids = set()
+        existing_uids = set(CollectibleItem.objects.values_list('uid', flat=True))
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            if row_idx == 1 or not any(row):  # Пропускаем заголовок и пустые строки
+            if row_idx == 1 or not any(row):  # Skip header and empty rows
                 continue
 
             row_data = list(row)
             try:
                 if len(row_data) < 6:
-                    raise ValueError("Не все поля заполнены (требуется 6 колонок)")
+                    raise ValueError("Все поля должны быть заполнены (6 колонок)")
 
-                item_dict = {
+                # Prepare data dict
+                item_data = {
                     'name': str(row_data[0]) if row_data[0] is not None else '',
                     'uid': str(row_data[1]) if row_data[1] is not None else '',
                     'value': str(row_data[2]) if row_data[2] is not None else '0',
@@ -45,18 +47,27 @@ def upload_file(request):
                     'picture': str(row_data[5]).rstrip(';') if row_data[5] is not None else '',
                 }
 
-                if item_dict['uid'] in seen_uids:
-                    raise ValueError(f"UID {item_dict['uid']} дублируется в файле")
-                seen_uids.add(item_dict['uid'])
+                # Check for duplicate UIDs in file
+                if item_data['uid'] in seen_uids:
+                    raise ValueError(f"UID {item_data['uid']} дублируется в файле")
+                seen_uids.add(item_data['uid'])
 
-                validated_data = CollectibleItemCreate.parse_obj(item_dict)
-                CollectibleItem.objects.create(**validated_data.dict())
+                # Check if UID exists in DB
+                if item_data['uid'] in existing_uids:
+                    raise ValueError(f"UID {item_data['uid']} уже существует в базе")
 
-            except (ValidationError, ValueError, IntegrityError, InvalidOperation):
-                # Добавляем только данные строки (без номера и сообщения об ошибке)
+                # Validate with serializer
+                serializer = CollectibleItemSerializer(data=item_data)
+                if not serializer.is_valid():
+                    errors = "; ".join([f"{k}: {v[0]}" for k, v in serializer.errors.items()])
+                    raise ValueError(errors)
+
+                # Save valid data
+                serializer.save()
+
+            except Exception as e:
                 invalid_rows_data.append(row_data)
 
-        # Возвращаем только список данных невалидных строк
         return Response(invalid_rows_data, status=status.HTTP_200_OK)
 
     except Exception as e:
