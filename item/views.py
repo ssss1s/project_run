@@ -3,10 +3,54 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
 from decimal import Decimal, InvalidOperation
+from django.db import IntegrityError
 from item.models import CollectibleItem
 from rest_framework import status, viewsets
+import re
+
 from item.serializers import CollectibleItemSerializer
 
+# Строгий список разрешенных типов предметов
+VALID_ITEM_TYPES = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']
+
+def validate_type(value):
+    """Проверка типа предмета"""
+    return str(value) in VALID_ITEM_TYPES
+
+def validate_uid(value):
+    """Строгая проверка формата UID (8 hex-символов)"""
+    return bool(re.fullmatch(r'^[a-f0-9]{8}$', str(value).lower()))
+
+def validate_value(value):
+    """Проверка значения (только положительные целые числа)"""
+    try:
+        num = int(float(str(value)))
+        return num > 0
+    except (ValueError, TypeError):
+        return False
+
+def validate_coordinate(value, coord_type):
+    """Проверка координат с точностью до 6 знаков"""
+    try:
+        coord = Decimal(str(value)).quantize(Decimal('0.000000'))
+        if coord_type == 'latitude':
+            return -90 <= coord <= 90
+        return -180 <= coord <= 180
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+
+def validate_url(url):
+    """Строгая проверка URL"""
+    url = str(url).strip()
+    return (
+        url.startswith(('http://', 'https://')) and
+        len(url) >= 10 and
+        ' ' not in url and
+        '.' in url and
+        '::' not in url and
+        not url.endswith(';') and  # Запрещаем точку с запятой в конце
+        re.match(r'^https?://[^\s/$.?#].[^\s]*$', url)  # Проверка общего формата URL
+    )
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
@@ -22,85 +66,53 @@ def upload_file(request):
         wb = load_workbook(filename=file)
         ws = wb.active
         invalid_rows = []
-
-        # 1. Получаем ВСЕ существующие данные из БД один раз
-        existing_items = CollectibleItem.objects.all().values_list('uid', 'name')
-        existing_uids = {uid.lower() for uid, name in existing_items}
-        existing_name_uid_pairs = {(name, uid.lower()) for uid, name in existing_items}
-        valid_names = {'Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn'}
-        seen_uids_in_file = set()
+        seen_uids = set()  # Для отслеживания уникальности UID
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if row_idx == 1 or not any(row):
                 continue
 
             row_data = list(row)
-            try:
-                # 2. Проверка наличия всех 6 полей
-                if len(row_data) < 6:
-                    raise ValueError("Требуется ровно 6 полей")
+            if len(row_data) < 6:
+                invalid_rows.append(row_data)
+                continue
 
-                # 3. Подготовка данных
-                name = str(row_data[0]).strip()
-                uid = str(row_data[1]).strip().lower()
+            # Проверка уникальности UID в текущем файле
+            current_uid = str(row_data[1])
+            if current_uid in seen_uids:
+                invalid_rows.append(row_data)
+                continue
+            seen_uids.add(current_uid)
 
-                # 4. Жесткая проверка имени
-                if name not in valid_names:
-                    raise ValueError(f"Недопустимое имя: {name}")
+            is_valid = (
+                validate_type(row_data[0]) and
+                validate_uid(row_data[1]) and
+                validate_value(row_data[2]) and
+                validate_coordinate(row_data[3], 'latitude') and
+                validate_coordinate(row_data[4], 'longitude') and
+                validate_url(row_data[5])
+            )
 
-                # 5. Проверка формата UID
-                if not (len(uid) == 8 and all(c in '0123456789abcdef' for c in uid)):
-                    raise ValueError("UID должен быть 8 hex-символов")
-
-                # 6. Проверка на дубликаты в файле
-                if uid in seen_uids_in_file:
-                    raise ValueError(f"UID {uid} дублируется в файле")
-
-                # 7. Двойная проверка на существование в БД
-                if uid in existing_uids or (name, uid) in existing_name_uid_pairs:
-                    raise ValueError(f"Объект {name} с UID {uid} уже существует")
-
-                seen_uids_in_file.add(uid)
-
-                # 8. Проверка value
+            if is_valid:
                 try:
-                    value = int(float(str(row_data[2])))
-                    if value <= 0:
-                        raise ValueError("Значение должно быть > 0")
-                except (ValueError, TypeError):
-                    raise ValueError("Некорректное значение")
-
-                # 9. Проверка координат
-                try:
-                    lat = Decimal(str(row_data[3]).replace(',', '.'))
-                    lon = Decimal(str(row_data[4]).replace(',', '.'))
-                    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-                        raise ValueError("Координаты вне диапазона")
-                except (InvalidOperation, ValueError):
-                    raise ValueError("Некорректные координаты")
-
-                # 10. Проверка URL
-                picture = str(row_data[5]).strip().rstrip(';')
-                if not (picture.startswith(('http://', 'https://')) and ' ' not in picture):
-                    raise ValueError("Некорректный URL")
-
-                # Если все проверки пройдены - создаем объект
-                CollectibleItem.objects.create(
-                    name=name,
-                    uid=uid,
-                    value=value,
-                    latitude=lat,
-                    longitude=lon,
-                    picture=picture
-                )
-
-            except Exception as e:
+                    CollectibleItem.objects.create(
+                        name=str(row_data[0]),
+                        uid=current_uid,
+                        value=int(float(str(row_data[2]))),
+                        latitude=Decimal(row_data[3]),
+                        longitude=Decimal(row_data[4]),
+                        picture=str(row_data[5]).rstrip(';')  # Удаляем точку с запятой в конце
+                    )
+                except IntegrityError:
+                    invalid_rows.append(row_data)  # Если UID уже существует в БД
+            else:
                 invalid_rows.append(row_data)
 
         return Response(invalid_rows, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class CollectibleItemViewSet(viewsets.ModelViewSet):
     queryset = CollectibleItem.objects.all()
     serializer_class = CollectibleItemSerializer
