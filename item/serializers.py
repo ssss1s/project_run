@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 class CollectibleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CollectibleItem
-        fields = ['id', 'name', 'uid', 'latitude', 'longitude', 'picture', 'value']
+        fields = ['id','name', 'uid', 'latitude', 'longitude', 'picture', 'value']
 
     VALID_ITEM_TYPES = ['Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn']
 

@@ -1,4 +1,5 @@
-from decimal import InvalidOperation
+import re
+from decimal import InvalidOperation, Decimal
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -24,51 +25,62 @@ def upload_file(request):
     try:
         wb = load_workbook(filename=file)
         ws = wb.active
-        invalid_rows_data = []
+        invalid_rows = []
         seen_uids = set()
+
+        # Получаем все существующие UID из базы один раз
         existing_uids = set(CollectibleItem.objects.values_list('uid', flat=True))
+        valid_names = {'Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn'}
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            if row_idx == 1 or not any(row):  # Skip header and empty rows
+            if row_idx == 1 or not any(row):
                 continue
 
             row_data = list(row)
             try:
                 if len(row_data) < 6:
-                    raise ValueError("Все поля должны быть заполнены (6 колонок)")
+                    raise ValueError("Не все поля заполнены")
 
-                # Prepare data dict
-                item_data = {
-                    'name': str(row_data[0]) if row_data[0] is not None else '',
-                    'uid': str(row_data[1]) if row_data[1] is not None else '',
-                    'value': str(row_data[2]) if row_data[2] is not None else '0',
-                    'latitude': str(row_data[3]) if row_data[3] is not None else '',
-                    'longitude': str(row_data[4]) if row_data[4] is not None else '',
-                    'picture': str(row_data[5]).rstrip(';') if row_data[5] is not None else '',
-                }
+                # Базовые проверки перед созданием объекта
+                name = str(row_data[0]) if row_data[0] is not None else ''
+                uid = str(row_data[1]) if row_data[1] is not None else ''
 
-                # Check for duplicate UIDs in file
-                if item_data['uid'] in seen_uids:
-                    raise ValueError(f"UID {item_data['uid']} дублируется в файле")
-                seen_uids.add(item_data['uid'])
+                # 1. Проверка имени
+                if name not in valid_names:
+                    raise ValueError(f"Недопустимое имя предмета: {name}")
 
-                # Check if UID exists in DB
-                if item_data['uid'] in existing_uids:
-                    raise ValueError(f"UID {item_data['uid']} уже существует в базе")
+                # 2. Проверка UID
+                if len(uid) != 8 or not re.fullmatch(r'^[a-f0-9]{8}$', uid.lower()):
+                    raise ValueError("UID должен состоять из 8 hex-символов")
 
-                # Validate with serializer
-                serializer = CollectibleItemSerializer(data=item_data)
-                if not serializer.is_valid():
-                    errors = "; ".join([f"{k}: {v[0]}" for k, v in serializer.errors.items()])
-                    raise ValueError(errors)
+                # 3. Проверка на дубликаты в файле
+                if uid in seen_uids:
+                    raise ValueError(f"UID {uid} дублируется в файле")
 
-                # Save valid data
-                serializer.save()
+                # 4. Проверка на существование в БД
+                if uid in existing_uids:
+                    raise ValueError(f"UID {uid} уже существует в базе")
+
+                seen_uids.add(uid)
+
+                # Создаем и валидируем объект
+                item = CollectibleItem(
+                    name=name,
+                    uid=uid,
+                    value=int(row_data[2]) if row_data[2] is not None else 0,
+                    latitude=Decimal(str(row_data[3])) if row_data[3] is not None else Decimal('0'),
+                    longitude=Decimal(str(row_data[4])) if row_data[4] is not None else Decimal('0'),
+                    picture=str(row_data[5]).rstrip(';') if row_data[5] is not None else ''
+                )
+
+                # Полная валидация модели
+                item.full_clean()
+                item.save()
 
             except Exception as e:
-                invalid_rows_data.append(row_data)
+                invalid_rows.append(row_data)
 
-        return Response(invalid_rows_data, status=status.HTTP_200_OK)
+        return Response(invalid_rows, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
