@@ -64,19 +64,20 @@ def upload_file(request):
                 if isinstance(e, ValidationError):
                     error_msg = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
 
-                invalid_rows.append({
-                    "row": row_idx,
-                    "data": row_data,
-                    "error": error_msg
-                })
+                invalid_rows.append([
+                    row_idx,  # Номер строки
+                    row_data,  # Данные строки (как список)
+                    error_msg  # Сообщение об ошибке
+                ])
 
-        return Response(invalid_rows, status=status.HTTP_200_OK)
+        response_data = {
+            "created_count": created_count,
+            "invalid_rows": invalid_rows
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response({
-            "error": f"Ошибка обработки файла: {str(e)}",
-            "details": str(e.__class__.__name__)
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CollectibleItemViewSet(viewsets.ModelViewSet):
     queryset = CollectibleItem.objects.all()
