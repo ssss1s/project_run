@@ -4,12 +4,10 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
-from django.db import IntegrityError
 from rest_framework import status, viewsets
-from pydantic import ValidationError
 from .models import CollectibleItem
 from .serializers import CollectibleItemSerializer
-from .schemas import CollectibleItemCreate
+
 
 
 @api_view(['POST'])
@@ -28,7 +26,7 @@ def upload_file(request):
         invalid_rows = []
         seen_uids = set()
 
-        # Получаем все существующие UID из базы один раз
+        # Заранее получаем все существующие UID и допустимые имена
         existing_uids = set(CollectibleItem.objects.values_list('uid', flat=True))
         valid_names = {'Coin', 'Flag', 'Sun', 'Key', 'Bottle', 'Horn'}
 
@@ -39,9 +37,8 @@ def upload_file(request):
             row_data = list(row)
             try:
                 if len(row_data) < 6:
-                    raise ValueError("Не все поля заполнены")
+                    raise ValueError("Требуется 6 колонок данных")
 
-                # Базовые проверки перед созданием объекта
                 name = str(row_data[0]) if row_data[0] is not None else ''
                 uid = str(row_data[1]) if row_data[1] is not None else ''
 
@@ -49,9 +46,9 @@ def upload_file(request):
                 if name not in valid_names:
                     raise ValueError(f"Недопустимое имя предмета: {name}")
 
-                # 2. Проверка UID
+                # 2. Проверка формата UID
                 if len(uid) != 8 or not re.fullmatch(r'^[a-f0-9]{8}$', uid.lower()):
-                    raise ValueError("UID должен состоять из 8 hex-символов")
+                    raise ValueError("Неверный формат UID")
 
                 # 3. Проверка на дубликаты в файле
                 if uid in seen_uids:
@@ -63,19 +60,41 @@ def upload_file(request):
 
                 seen_uids.add(uid)
 
-                # Создаем и валидируем объект
-                item = CollectibleItem(
+                # 5. Проверка числовых значений
+                try:
+                    value = int(row_data[2]) if row_data[2] is not None else 0
+                    if value <= 0:
+                        raise ValueError("Значение должно быть положительным")
+                except (TypeError, ValueError):
+                    raise ValueError("Некорректное числовое значение")
+
+                # 6. Проверка координат
+                try:
+                    lat = Decimal(str(row_data[3])) if row_data[3] is not None else None
+                    lon = Decimal(str(row_data[4])) if row_data[4] is not None else None
+
+                    if lat is None or lon is None:
+                        raise ValueError("Координаты обязательны")
+
+                    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+                        raise ValueError("Координаты вне допустимого диапазона")
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValueError("Некорректные координаты")
+
+                # 7. Проверка URL
+                picture = str(row_data[5]).rstrip(';') if row_data[5] is not None else ''
+                if not picture.startswith(('http://', 'https://')):
+                    raise ValueError("Некорректный URL")
+
+                # Если все проверки пройдены, создаем объект
+                CollectibleItem.objects.create(
                     name=name,
                     uid=uid,
-                    value=int(row_data[2]) if row_data[2] is not None else 0,
-                    latitude=Decimal(str(row_data[3])) if row_data[3] is not None else Decimal('0'),
-                    longitude=Decimal(str(row_data[4])) if row_data[4] is not None else Decimal('0'),
-                    picture=str(row_data[5]).rstrip(';') if row_data[5] is not None else ''
+                    value=value,
+                    latitude=lat,
+                    longitude=lon,
+                    picture=picture
                 )
-
-                # Полная валидация модели
-                item.full_clean()
-                item.save()
 
             except Exception as e:
                 invalid_rows.append(row_data)
