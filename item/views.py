@@ -24,20 +24,18 @@ def upload_file(request):
     try:
         wb = load_workbook(filename=file)
         ws = wb.active
-        invalid_rows = []
+        invalid_rows_data = []  # Будем хранить только данные невалидных строк
         seen_uids = set()
-        created_count = 0
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if row_idx == 1 or not any(row):  # Пропускаем заголовок и пустые строки
                 continue
 
+            row_data = list(row)
             try:
-                row_data = list(row)
                 if len(row_data) < 6:
                     raise ValueError("Не все поля заполнены (требуется 6 колонок)")
 
-                # Подготовка данных с обработкой возможных None значений
                 item_dict = {
                     'name': str(row_data[0]) if row_data[0] is not None else '',
                     'uid': str(row_data[1]) if row_data[1] is not None else '',
@@ -47,34 +45,19 @@ def upload_file(request):
                     'picture': str(row_data[5]).rstrip(';') if row_data[5] is not None else '',
                 }
 
-                # Проверка уникальности UID в текущем файле
                 if item_dict['uid'] in seen_uids:
                     raise ValueError(f"UID {item_dict['uid']} дублируется в файле")
                 seen_uids.add(item_dict['uid'])
 
-                # Валидация с помощью Pydantic
                 validated_data = CollectibleItemCreate.parse_obj(item_dict)
-
-                # Создание объекта
                 CollectibleItem.objects.create(**validated_data.dict())
-                created_count += 1
 
-            except (ValidationError, ValueError, IntegrityError, InvalidOperation) as e:
-                error_msg = str(e)
-                if isinstance(e, ValidationError):
-                    error_msg = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
+            except (ValidationError, ValueError, IntegrityError, InvalidOperation):
+                # Добавляем только данные строки (без номера и сообщения об ошибке)
+                invalid_rows_data.append(row_data)
 
-                invalid_rows.append([
-                    row_idx,  # Номер строки
-                    row_data,  # Данные строки (как список)
-                    error_msg  # Сообщение об ошибке
-                ])
-
-        response_data = {
-            "created_count": created_count,
-            "invalid_rows": invalid_rows
-        }
-        return Response(response_data, status=status.HTTP_200_OK)
+        # Возвращаем только список данных невалидных строк
+        return Response(invalid_rows_data, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
