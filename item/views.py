@@ -1,5 +1,4 @@
-from decimal import Decimal, InvalidOperation
-
+from decimal import InvalidOperation
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -7,11 +6,9 @@ from openpyxl import load_workbook
 from django.db import IntegrityError
 from rest_framework import status, viewsets
 from pydantic import ValidationError
-from typing import List
-
 from .models import CollectibleItem
 from .serializers import CollectibleItemSerializer
-from .schemas import CollectibleItemCreate  # Импортируем Pydantic модель
+from .schemas import CollectibleItemCreate
 
 
 @api_view(['POST'])
@@ -80,6 +77,7 @@ def upload_file(request):
             "error": f"Ошибка обработки файла: {str(e)}",
             "details": str(e.__class__.__name__)
         }, status=status.HTTP_400_BAD_REQUEST)
+
 class CollectibleItemViewSet(viewsets.ModelViewSet):
     queryset = CollectibleItem.objects.all()
     serializer_class = CollectibleItemSerializer

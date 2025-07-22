@@ -1,4 +1,3 @@
-from django.db.models.aggregates import Sum
 from rest_framework import serializers
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
@@ -72,6 +71,24 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_runs_finished(self, obj):
         return obj.runs.filter(status=RunStatus.FINISHED).count()
+
+class UserDetailSerializer(UserSerializer):
+    items = serializers.SerializerMethodField()  # Изменено с EmailField
+
+    class Meta(UserSerializer.Meta):
+        model = User
+        fields = UserSerializer.Meta.fields + ['items']
+
+    def get_items(self, obj):
+        # Возвращаем список коллекционных предметов пользователя
+        from item.serializers import CollectibleItemSerializer  # Импортируем здесь, чтобы избежать циклических импортов
+        items = obj.items.all()  # Используем related_name из модели
+        return CollectibleItemSerializer(items, many=True).data
+
+
+
+
+
 
 
 
