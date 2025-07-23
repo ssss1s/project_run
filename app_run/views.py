@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+from django.db.models import Min, Max
 from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from geopy.distance import geodesic
@@ -98,6 +98,15 @@ class RunStopAPIView(APIView):
                     {"error": "Запуск может быть остановлен только из состояния in_progress"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            extreme_positions = Position.objects.filter(run=run).aggregate(
+                first_position=Min('date_time'),
+                last_position=Max('date_time')
+            )
+            run_time_seconds = 0.0
+            if extreme_positions['first_position'] and extreme_positions['last_position']:
+                run_time_seconds = (extreme_positions['last_position'] -
+                                  extreme_positions['first_position']).total_seconds()
+
 
             # Получаем все точки маршрута
             positions = Position.objects.filter(run=run).order_by('id')
@@ -151,6 +160,7 @@ class RunStopAPIView(APIView):
             # Обновляем забег
             run.status = RunStatus.FINISHED
             run.distance = total_distance_km
+            run.run_time_seconds = run_time_seconds
             run.save()
 
             # Проверяем достижения

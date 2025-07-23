@@ -4,11 +4,11 @@ from .schemas import PositionCreate
 
 
 class PositionSerializer(serializers.ModelSerializer):
-    latitude = serializers.FloatField()
-    longitude = serializers.FloatField()
+    date_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%S.%f')
+
     class Meta:
         model = Position
-        fields = ['id', 'run', 'latitude', 'longitude']
+        fields = ['id', 'run', 'latitude', 'longitude', 'date_time']
         extra_kwargs = {
             'run': {'required': True},
             'latitude': {'required': True},

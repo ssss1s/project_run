@@ -17,6 +17,7 @@ class RunBase(BaseModel):
     athlete: int  # ID пользователя (аналог ForeignKey на User)
     status: RunStatusPydantic = RunStatusPydantic.INIT  # Статус по умолчанию
     distance: Decimal = Field(default=Decimal('0.0'), ge=Decimal('0.0'))  # Дистанция (как FloatField в Django)
+    run_time_seconds:float = Field(default=Decimal('0.0'), ge=Decimal('0.0'))
 
     @field_validator('distance', mode='before')
     def parse_distance(cls, value):
