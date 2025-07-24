@@ -18,7 +18,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-
+from django.db.models import Count, Q
 class UserPagination(PageNumberPagination):
     page_size = 5
     page_size_query_param = 'size'
@@ -46,7 +46,7 @@ class RunViewSet(viewsets.ModelViewSet):
     pagination_class = RunPagination
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = User.objects.filter(is_superuser=False)
+    queryset = User.objects.none()
     serializer_class = UserSerializer
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['last_name', 'first_name']
@@ -54,13 +54,22 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = UserPagination
 
     def get_queryset(self):
-        qs = self.queryset
-        user_type = self.request.query_params.get('type', None)
+        queryset = User.objects.filter(is_superuser=False).annotate(
+            runs_finished_count=Count(
+                'runs',
+                filter=Q(runs__status=RunStatus.FINISHED),
+                distinct=True  # можно убрать, если нет дублей
+            )
+        )
+
+        user_type = self.request.query_params.get('type')
         if user_type == 'coach':
-            qs = qs.filter(is_staff=True)
+            queryset = queryset.filter(is_staff=True)
         elif user_type == 'athlete':
-            qs = qs.filter(is_staff=False)
-        return qs
+            queryset = queryset.filter(is_staff=False)
+
+        return queryset
+
 
     def get_serializer_class(self):
         if self.action == 'list':

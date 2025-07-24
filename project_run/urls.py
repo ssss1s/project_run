@@ -27,7 +27,7 @@ from latitudelongitude.views import PositionViewSet
 
 router = DefaultRouter()
 router.register('api/runs', RunViewSet)
-router.register('api/users', UserViewSet)
+router.register('api/users', UserViewSet, basename='users')
 router.register('api/athlete_info', AthleteViewSet, basename='athlete-info')
 router.register('api/challenges', ChallengeViewSet, basename='challenges')
 router.register('api/positions', PositionViewSet, basename='position')

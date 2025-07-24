@@ -57,7 +57,7 @@ class RunSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
-    runs_finished=serializers.SerializerMethodField()
+    runs_finished = serializers.IntegerField(source='runs_finished_count', read_only=True)
 
     class Meta:
         model = User
@@ -69,8 +69,8 @@ class UserSerializer(serializers.ModelSerializer):
             else:
                 return 'athlete'
 
-    def get_runs_finished(self, obj):
-        return obj.runs.filter(status=RunStatus.FINISHED).count()
+    #def get_runs_finished(self, obj):
+        #return obj.runs.filter(status=RunStatus.FINISHED).count()
 
 class UserDetailSerializer(UserSerializer):
     items = serializers.SerializerMethodField()  # Изменено с EmailField
