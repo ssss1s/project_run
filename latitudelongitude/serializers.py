@@ -116,7 +116,7 @@ class PositionSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         return PositionResponse(**representation).dict()
 
-    def validate_date_time(self, value):
+    def validate_date_time(self, value, pytz=None):
         """Дополнительная валидация даты"""
         if not isinstance(value, datetime):
             try:
