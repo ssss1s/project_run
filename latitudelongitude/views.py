@@ -31,6 +31,9 @@ class PositionViewSet(viewsets.ModelViewSet):
         if previous_positions.exists():
             last_position = previous_positions.last()
 
+            # Преобразуем предыдущее расстояние в Decimal
+            last_distance = Decimal(str(last_position.distance))
+
             # Расчет расстояния в километрах и конвертация в метры
             segment_km = geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
@@ -41,14 +44,15 @@ class PositionViewSet(viewsets.ModelViewSet):
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                speed = Decimal(str(segment_distance)) / Decimal(str(time_diff))
+                speed = segment_distance / Decimal(str(time_diff))
 
-            distance = last_position.distance + segment_distance
+            distance = last_distance + segment_distance
 
             # Округляем до сотых
             distance = round(distance, 2)
             speed = round(speed, 2)
 
+        # Преобразуем Decimal в float для сериализатора
         serializer.validated_data.update({
             'distance': float(distance),
             'speed': float(speed),
