@@ -1,3 +1,4 @@
+from datetime import datetime
 from rest_framework import serializers
 from .models import Position
 from .schemas import PositionCreate, PositionResponse
@@ -114,3 +115,24 @@ class PositionSerializer(serializers.ModelSerializer):
         """Преобразование для ответа через Pydantic"""
         representation = super().to_representation(instance)
         return PositionResponse(**representation).dict()
+
+    def validate_date_time(self, value):
+        """Дополнительная валидация даты"""
+        if not isinstance(value, datetime):
+            try:
+                value = datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%f')
+            except ValueError:
+                raise serializers.ValidationError(
+                    "Неверный формат даты. Используйте YYYY-MM-DDThh:mm:ss.ffffff"
+                )
+
+        if value.tzinfo is None:
+            value = pytz.UTC.localize(value)
+        return value
+
+    def to_representation(self, instance):
+        """Гарантируем правильный формат в ответе"""
+        ret = super().to_representation(instance)
+        if 'date_time' in ret and isinstance(ret['date_time'], datetime):
+            ret['date_time'] = ret['date_time'].strftime('%Y-%m-%dT%H:%M:%S.%f')
+        return ret
