@@ -19,6 +19,7 @@ from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Count, Q
+
 class UserPagination(PageNumberPagination):
     page_size = 5
     page_size_query_param = 'size'
@@ -58,7 +59,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
             runs_finished_count=Count(
                 'runs',
                 filter=Q(runs__status=RunStatus.FINISHED),
-                distinct=True  # можно убрать, если нет дублей
+                distinct=True
             )
         )
 

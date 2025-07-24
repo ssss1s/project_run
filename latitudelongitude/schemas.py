@@ -12,6 +12,8 @@ class PositionCreate(BaseModel):
     run: int = Field(..., gt=0, description="ID забега")
     latitude: float = Field(..., ge=-90.0, le=90.0)
     longitude: float = Field(..., ge=-180.0, le=180.0)
+    distance: float = Field(..., ge=0.0)
+    speed: float = Field(..., ge=0.0)
 
     @validator('run')
     def validate_run_status(cls, run_id, values):
@@ -30,6 +32,8 @@ class PositionResponse(BaseModel):
     run_id: int = Field(..., alias="run")
     latitude: float
     longitude: float
+    distance: float
+    speed: float
 
     class Config:
         from_attributes = True

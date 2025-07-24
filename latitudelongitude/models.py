@@ -8,6 +8,8 @@ class Position(models.Model):
     latitude=models.DecimalField(max_digits=9, decimal_places=4)
     longitude=models.DecimalField(max_digits=9, decimal_places=4)
     date_time = models.DateTimeField(default=timezone.now)
+    distance = models.FloatField(default=0.0)
+    speed = models.FloatField(default=0.0)
 
 
     class Meta:
@@ -16,3 +18,4 @@ class Position(models.Model):
 
     def __str__(self):
         return f"Position for Run {self.run_id}"
+
