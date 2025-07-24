@@ -5,10 +5,7 @@ from decimal import Decimal
 
 
 class PositionSerializer(serializers.ModelSerializer):
-    date_time = serializers.DateTimeField(
-        format='%Y-%m-%dT%H:%M:%S.%fZ',
-        input_formats=['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', 'iso-8601']
-    )
+    date_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%S.%f')
 
     class Meta:
         model = Position
