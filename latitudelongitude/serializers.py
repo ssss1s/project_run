@@ -1,7 +1,6 @@
-from rest_framework import serializers, status
+from rest_framework import serializers
 from .models import Position
 from .schemas import PositionCreate, PositionResponse
-from django.core.exceptions import ObjectDoesNotExist
 from decimal import Decimal
 
 
@@ -18,6 +17,7 @@ class PositionSerializer(serializers.ModelSerializer):
             'run': {'required': True},
             'latitude': {'required': True},
             'longitude': {'required': True},
+            'date_time': {'required': True},
             'distance': {'required': False, 'default': 0.0},
             'speed': {'required': False, 'default': 0.0}
         }

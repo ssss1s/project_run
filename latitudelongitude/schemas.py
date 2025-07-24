@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
@@ -32,6 +33,7 @@ class PositionResponse(BaseModel):
     run_id: int = Field(..., alias="run")
     latitude: float
     longitude: float
+    date_time: datetime
     distance: float
     speed: float
 
