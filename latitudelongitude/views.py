@@ -13,7 +13,19 @@ class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['run']
+    filterset_fields = {
+        'run': ['exact'],  # Явно указываем тип фильтрации
+    }
+
+    def get_queryset(self):
+        """
+        Опционально: можно добавить дополнительную фильтрацию
+        """
+        queryset = super().get_queryset()
+        run_id = self.request.query_params.get('run')
+        if run_id:
+            queryset = queryset.filter(run_id=run_id)
+        return queryset
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
