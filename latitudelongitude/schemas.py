@@ -27,6 +27,19 @@ class PositionCreate(BaseModel):
             raise ValueError("Забег должен быть в статусе 'in_progress'")
         return run_id
 
+class PositionFilter(BaseModel):
+    run: int | None = Field(None, gt=0, description="ID забега для фильтрации")
+    min_distance: float | None = Field(None, ge=0, description="Минимальная дистанция")
+    max_distance: float | None = Field(None, ge=0, description="Максимальная дистанция")
+    status: RunStatus | None = Field(None, description="Статус забега")
+
+    @validator('run')
+    def validate_run_exists(cls, run_id):
+        if run_id is not None:
+            from app_run.models import Run
+            if not Run.objects.filter(id=run_id).exists():
+                raise ValueError("Забег с указанным ID не существует")
+        return run_id
 
 class PositionResponse(BaseModel):
     id: int
