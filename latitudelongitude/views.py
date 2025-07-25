@@ -58,7 +58,7 @@ class PositionViewSet(viewsets.ModelViewSet):
             self.perform_create(serializer)
             self.update_run_average_speed(run.id)
 
-            headers = self.get_success_headers(serializer.data)
+        headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update_run_average_speed(self, run_id):
