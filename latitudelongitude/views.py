@@ -1,36 +1,20 @@
+from datetime import timezone
+from decimal import Decimal
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+
+from app_run.models import Run
 from .models import Position
 from .serializers import PositionSerializer
 from geopy.distance import geodesic
-from app_run.models import Run
-from django.utils import timezone
-from decimal import Decimal
-
 
 class PositionViewSet(viewsets.ModelViewSet):
+    queryset = Position.objects.all()
     serializer_class = PositionSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = {
-        'run': ['exact', 'in'],  # Поддержка точного соответствия и фильтрации по списку
-    }
-
-    def get_queryset(self):
-        queryset = Position.objects.all().order_by('date_time')
-
-        # Дополнительная фильтрация по параметрам запроса
-        run_id = self.request.query_params.get('run')
-        if run_id:
-            if ',' in run_id:
-                # Фильтрация по нескольким run_id (через запятую)
-                run_ids = [int(id) for id in run_id.split(',')]
-                queryset = queryset.filter(run_id__in=run_ids)
-            else:
-                # Фильтрация по одному run_id
-                queryset = queryset.filter(run_id=int(run_id))
-
-        return queryset
+    filterset_fields = ['run']
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
