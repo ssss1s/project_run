@@ -31,32 +31,34 @@ class PositionViewSet(viewsets.ModelViewSet):
         if previous_positions.exists():
             last_position = previous_positions.last()
 
-            # Расчет расстояния в метрах
-            segment_meters = Decimal(str(geodesic(
+            # Расчет расстояния в КИЛОМЕТРАХ
+            segment_km = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
-            ).meters))
+            ).km))  # Используем .km вместо .meters
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                speed = segment_meters / Decimal(str(time_diff))
+                # Скорость в км/ч (time_diff в секундах -> делим на 3600 для перевода в часы)
+                speed = segment_km / (Decimal(str(time_diff)) / 3600)
 
-            # Накопленное расстояние
-            distance = Decimal(str(last_position.distance)) + segment_meters
+            # Накопленное расстояние в км
+            distance = Decimal(str(last_position.distance)) + segment_km
 
             # Округляем до сотых
             distance = round(distance, 2)
             speed = round(speed, 2)
 
-            serializer.validated_data.update({
-                'distance': float(distance),
-                'speed': float(speed),
-                'date_time': date_time
-            })
+        # Обновляем данные для всех случаев (и для первой позиции тоже)
+        serializer.validated_data.update({
+            'distance': float(distance),
+            'speed': float(speed),
+            'date_time': date_time
+        })
 
-            self.perform_create(serializer)
-            self.update_run_average_speed(run.id)
+        self.perform_create(serializer)
+        self.update_run_average_speed(run.id)
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
