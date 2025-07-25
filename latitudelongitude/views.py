@@ -15,6 +15,13 @@ class PositionViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['run']
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        run_id = self.request.query_params.get('run', None)
+        if run_id:
+            queryset = queryset.filter(run__id=run_id)
+        return queryset
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
