@@ -14,7 +14,8 @@ class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['run']
+    filterset_fields = {'run'}
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

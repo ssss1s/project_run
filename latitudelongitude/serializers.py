@@ -11,14 +11,6 @@ class PositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = ['id', 'run', 'latitude', 'longitude', 'date_time', 'distance', 'speed']
-        extra_kwargs = {
-            'run': {'required': True},
-            'latitude': {'required': True},
-            'longitude': {'required': True},
-            'date_time': {'required': True},
-            'distance': {'required': False, 'default': 0.0},
-            'speed': {'required': False, 'default': 0.0}
-        }
 
     def validate_latitude(self, value):
         """Валидация широты с преобразованием в float"""
