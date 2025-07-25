@@ -40,7 +40,7 @@ class PositionViewSet(viewsets.ModelViewSet):
                 (float(latitude), float(longitude))
             ).km
 
-            segment_distance = Decimal(str(segment_km)) * Decimal('1000')  # Конвертируем в метры
+            segment_distance = Decimal(str(segment_km))
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
