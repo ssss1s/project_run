@@ -31,46 +31,38 @@ class PositionViewSet(viewsets.ModelViewSet):
         if previous_positions.exists():
             last_position = previous_positions.last()
 
-            # Преобразуем предыдущее расстояние в Decimal
-            last_distance = Decimal(str(last_position.distance))
-
-            # Расчет расстояния в километрах и конвертация в метры
-            segment_km = geodesic(
+            # Расчет расстояния в метрах
+            segment_meters = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
-            ).km
+            ).meters))
 
-            segment_distance = Decimal(str(segment_km))
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                speed = segment_distance / Decimal(str(time_diff))
+                speed = segment_meters / Decimal(str(time_diff))
 
-            distance = last_distance + segment_distance
+            # Накопленное расстояние
+            distance = Decimal(str(last_position.distance)) + segment_meters
 
             # Округляем до сотых
             distance = round(distance, 2)
             speed = round(speed, 2)
 
-        # Преобразуем Decimal в float для сериализатора
-        serializer.validated_data.update({
-            'distance': float(distance),
-            'speed': float(speed),
-            'date_time': date_time
-        })
+            serializer.validated_data.update({
+                'distance': float(distance),
+                'speed': float(speed),
+                'date_time': date_time
+            })
 
-        self.perform_create(serializer)
+            self.perform_create(serializer)
+            self.update_run_average_speed(run.id)
 
-        # Обновляем среднюю скорость забега
-        self.update_run_average_speed(run.id)
-
-        headers = self.get_success_headers(serializer.data)
+            headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update_run_average_speed(self, run_id):
-        """Обновляет среднюю скорость для забега"""
         positions = Position.objects.filter(run_id=run_id).exclude(speed=0.0)
-
         if positions.exists():
             avg_speed = sum(p.speed for p in positions) / positions.count()
             Run.objects.filter(id=run_id).update(speed=round(avg_speed, 2))
