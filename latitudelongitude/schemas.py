@@ -1,12 +1,5 @@
 from datetime import datetime
 from pydantic import BaseModel, Field, validator
-from enum import Enum
-
-
-class RunStatus(str, Enum):
-    INIT = 'init'
-    IN_PROGRESS = 'in_progress'
-    FINISHED = 'finished'
 
 
 class PositionCreate(BaseModel):
@@ -16,22 +9,11 @@ class PositionCreate(BaseModel):
     distance: float = Field(..., ge=0.0)
     speed: float = Field(..., ge=0.0)
 
-    @validator('run')
-    def validate_run_status(cls, run_id, values):
-        from app_run.models import Run  # Ленивый импорт для избежания циклических импортов
-
-        run = Run.objects.filter(id=run_id).first()
-        if not run:
-            raise ValueError("Забег не существует")
-        if run.status != RunStatus.IN_PROGRESS:
-            raise ValueError("Забег должен быть в статусе 'in_progress'")
-        return run_id
 
 class PositionFilter(BaseModel):
     run: int | None = Field(None, gt=0, description="ID забега для фильтрации")
     min_distance: float | None = Field(None, ge=0, description="Минимальная дистанция")
     max_distance: float | None = Field(None, ge=0, description="Максимальная дистанция")
-    status: RunStatus | None = Field(None, description="Статус забега")
 
     @validator('run')
     def validate_run_exists(cls, run_id):
