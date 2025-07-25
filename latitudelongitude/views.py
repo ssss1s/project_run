@@ -10,21 +10,26 @@ from decimal import Decimal
 
 
 class PositionViewSet(viewsets.ModelViewSet):
-    queryset = Position.objects.all()
     serializer_class = PositionSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = {
-        'run': ['exact'],  # Явно указываем тип фильтрации
+        'run': ['exact', 'in'],  # Поддержка точного соответствия и фильтрации по списку
     }
 
     def get_queryset(self):
-        """
-        Опционально: можно добавить дополнительную фильтрацию
-        """
-        queryset = super().get_queryset()
+        queryset = Position.objects.all().order_by('date_time')
+
+        # Дополнительная фильтрация по параметрам запроса
         run_id = self.request.query_params.get('run')
         if run_id:
-            queryset = queryset.filter(run_id=run_id)
+            if ',' in run_id:
+                # Фильтрация по нескольким run_id (через запятую)
+                run_ids = [int(id) for id in run_id.split(',')]
+                queryset = queryset.filter(run_id__in=run_ids)
+            else:
+                # Фильтрация по одному run_id
+                queryset = queryset.filter(run_id=int(run_id))
+
         return queryset
 
     def create(self, request, *args, **kwargs):
