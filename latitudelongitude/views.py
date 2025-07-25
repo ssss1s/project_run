@@ -25,32 +25,31 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        distance = Decimal('0.0')
-        speed = Decimal('0.0')
+        distance = Decimal('0.0')  # Накопленное расстояние в метрах
+        speed = Decimal('0.0')  # Скорость в м/с
 
         if previous_positions.exists():
             last_position = previous_positions.last()
 
-            # Расчет расстояния в КИЛОМЕТРАХ
-            segment_km = Decimal(str(geodesic(
+            # Расстояние между точками в метрах (geodesic возвращает км, умножаем на 1000)
+            segment_meters = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
-            ).km))  # Используем .km вместо .meters
+            ).meters))  # Явно указываем .meters
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                # Скорость в км/ч (time_diff в секундах -> делим на 3600 для перевода в часы)
-                speed = segment_km / (Decimal(str(time_diff)) / 3600)
+                # Скорость = расстояние (м) / время (с) → результат в м/с
+                speed = segment_meters / Decimal(str(time_diff))
 
-            # Накопленное расстояние в км
-            distance = Decimal(str(last_position.distance)) + segment_km
+            # Накопленное расстояние в метрах
+            distance = Decimal(str(last_position.distance)) + segment_meters
 
-            # Округляем до сотых
-            distance = round(distance, 2)
-            speed = round(speed, 2)
+        # Округляем до сотых
+        distance = round(distance, 2)
+        speed = round(speed, 2)
 
-        # Обновляем данные для всех случаев (и для первой позиции тоже)
         serializer.validated_data.update({
             'distance': float(distance),
             'speed': float(speed),
@@ -62,7 +61,6 @@ class PositionViewSet(viewsets.ModelViewSet):
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
     def update_run_average_speed(self, run_id):
         positions = Position.objects.filter(run_id=run_id).exclude(speed=0.0)
         if positions.exists():
