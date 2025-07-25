@@ -47,12 +47,6 @@ INSTALLED_APPS = [
     'item'
 ]
 
-REST_FRAMEWORK = {
-    'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend'
-    ],
-    'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S.%f',
-}
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
