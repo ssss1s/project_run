@@ -61,8 +61,35 @@ class PositionViewSet(viewsets.ModelViewSet):
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def update_run_average_speed(self, run_id):
-        positions = Position.objects.filter(run_id=run_id).exclude(speed=0.0)
-        if positions.exists():
-            avg_speed = sum(p.speed for p in positions) / positions.count()
-            Run.objects.filter(id=run_id).update(speed=round(avg_speed, 2))
+        positions = Position.objects.filter(run_id=run_id).order_by('date_time')
+        if positions.count() < 2:
+            return  # Недостаточно данных для расчета
+
+        total_distance = Decimal('0.0')  # в километрах
+        total_time = Decimal('0.0')  # в часах
+
+        prev_position = positions.first()
+
+        for current_position in positions[1:]:
+            # Рассчитываем расстояние между точками
+            segment_distance = Decimal(str(geodesic(
+                (float(prev_position.latitude), float(prev_position.longitude)),
+                (float(current_position.latitude), float(current_position.longitude))
+            ).kilometers))
+
+            # Рассчитываем время между точками в часах
+            time_diff = (current_position.date_time - prev_position.date_time).total_seconds()
+            segment_time = Decimal(str(time_diff)) / Decimal('3600')  # секунды -> часы
+
+            total_distance += segment_distance
+            total_time += segment_time
+            prev_position = current_position
+
+            if total_time > 0:
+            # Средняя скорость = общее расстояние / общее время
+                avg_speed = total_distance / total_time  # результат в км/ч
+            # Конвертируем в м/с (если нужно)
+            avg_speed_m_s = avg_speed * Decimal('1000') / Decimal('3600')  # км/ч -> м/с
+            Run.objects.filter(id=run_id).update(speed=round(float(avg_speed_m_s), 2))
