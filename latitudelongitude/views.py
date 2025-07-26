@@ -63,28 +63,42 @@ class PositionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update_run_average_speed(self, run_id):
+        # Получаем все позиции забега в хронологическом порядке
         positions = Position.objects.filter(run_id=run_id).order_by('date_time')
+
+        # Если позиций меньше 2, среднюю скорость считать нельзя
         if positions.count() < 2:
             Run.objects.filter(id=run_id).update(speed=0.0)
             return
 
-        total_distance_km = Decimal('0.0')
-        total_time_seconds = Decimal('0.0')
+        total_distance_m = 0.0  # Общее расстояние в метрах
+        total_time_s = 0.0  # Общее время в секундах
 
-        prev_position = positions.first()
-        for current_position in positions[1:]:
-            segment_km = Decimal(str(geodesic(
-                (float(prev_position.latitude), float(prev_position.longitude)),
-                (float(current_position.latitude), float(current_position.longitude))
-            ).kilometers))
+        # Проходим по всем парам последовательных позиций
+        for i in range(1, len(positions)):
+            prev_pos = positions[i - 1]
+            curr_pos = positions[i]
 
-            time_diff = (current_position.date_time - prev_position.date_time).total_seconds()
+            # Рассчитываем расстояние между позициями в метрах
+            distance_m = geodesic(
+                (prev_pos.latitude, prev_pos.longitude),
+                (curr_pos.latitude, curr_pos.longitude)
+            ).meters
 
-            total_distance_km += segment_km
-            total_time_seconds += Decimal(str(time_diff))
-            prev_position = current_position
+            # Рассчитываем временной интервал в секундах
+            time_s = (curr_pos.date_time - prev_pos.date_time).total_seconds()
 
-            if total_time_seconds > 0:
-            # Средняя скорость в м/с: (общее_расстояние_км * 1000) / общее_время_сек
-                avg_speed_ms = (total_distance_km * Decimal('1000')) / total_time_seconds
-            Run.objects.filter(id=run_id).update(speed=round(float(avg_speed_ms), 2))
+            # Суммируем общие показатели
+            total_distance_m += distance_m
+            total_time_s += time_s
+
+        # Рассчитываем среднюю скорость (м/с)
+        if total_time_s > 0:
+            avg_speed_ms = total_distance_m / total_time_s
+            # Округляем до двух знаков после запятой
+            avg_speed_ms = round(avg_speed_ms, 2)
+        else:
+            avg_speed_ms = 0.0
+
+        # Обновляем запись забега
+        Run.objects.filter(id=run_id).update(speed=avg_speed_ms)
