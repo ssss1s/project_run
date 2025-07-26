@@ -25,7 +25,7 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        distance = Decimal('0.0')  # Накопленное расстояние в километрах
+        distance_km = Decimal('0.0')  # Накопленное расстояние в километрах
         speed = Decimal('0.0')  # Скорость в м/с
 
         if previous_positions.exists():
@@ -35,7 +35,7 @@ class PositionViewSet(viewsets.ModelViewSet):
             segment_km = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
-            ).kilometers))  # Используем .kilometers вместо .meters
+            ).kilometers))
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
@@ -43,15 +43,15 @@ class PositionViewSet(viewsets.ModelViewSet):
                 # Скорость = расстояние (км) * 1000 / время (с) → результат в м/с
                 speed = (segment_km * Decimal('1000')) / Decimal(str(time_diff))
 
-            # Накопленное расстояние в километрах
-            distance = Decimal(str(last_position.distance)) + segment_km
+            # Накопленное расстояние в километрах (без деления на 1000!)
+            distance_km = Decimal(str(last_position.distance)) + segment_km
 
         # Округляем до сотых
-        distance = round(distance, 2)
+        distance_km = round(distance_km, 2)
         speed = round(speed, 2)
 
         serializer.validated_data.update({
-            'distance': float(distance),
+            'distance': float(distance_km),  # Сохраняем в километрах
             'speed': float(speed),
             'date_time': date_time
         })
@@ -68,29 +68,23 @@ class PositionViewSet(viewsets.ModelViewSet):
             Run.objects.filter(id=run_id).update(speed=0.0)
             return
 
-        total_distance_km = Decimal('0.0')  # Общее расстояние в км
-        total_time_h = Decimal('0.0')  # Общее время в часах
+        total_distance_km = Decimal('0.0')
+        total_time_seconds = Decimal('0.0')
 
         prev_position = positions.first()
-
         for current_position in positions[1:]:
-            # Расчет расстояния между точками в км
-            segment_distance = Decimal(str(geodesic(
+            segment_km = Decimal(str(geodesic(
                 (float(prev_position.latitude), float(prev_position.longitude)),
                 (float(current_position.latitude), float(current_position.longitude))
             ).kilometers))
 
-            # Расчет времени между точками в часах
             time_diff = (current_position.date_time - prev_position.date_time).total_seconds()
-            segment_time = Decimal(str(time_diff)) / Decimal('3600')
 
-            total_distance_km += segment_distance
-            total_time_h += segment_time
+            total_distance_km += segment_km
+            total_time_seconds += Decimal(str(time_diff))
             prev_position = current_position
 
-            if total_time_h > 0:
-            # Средняя скорость в км/ч
-                avg_speed_kmh = total_distance_km / total_time_h
-            # Конвертация в м/с
-            avg_speed_ms = avg_speed_kmh * Decimal('1000') / Decimal('3600')
+            if total_time_seconds > 0:
+            # Средняя скорость в м/с: (общее_расстояние_км * 1000) / общее_время_сек
+                avg_speed_ms = (total_distance_km * Decimal('1000')) / total_time_seconds
             Run.objects.filter(id=run_id).update(speed=round(float(avg_speed_ms), 2))
