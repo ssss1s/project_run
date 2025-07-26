@@ -65,31 +65,32 @@ class PositionViewSet(viewsets.ModelViewSet):
     def update_run_average_speed(self, run_id):
         positions = Position.objects.filter(run_id=run_id).order_by('date_time')
         if positions.count() < 2:
-            return  # Недостаточно данных для расчета
+            Run.objects.filter(id=run_id).update(speed=0.0)
+            return
 
-        total_distance = Decimal('0.0')  # в километрах
-        total_time = Decimal('0.0')  # в часах
+        total_distance_km = Decimal('0.0')  # Общее расстояние в км
+        total_time_h = Decimal('0.0')  # Общее время в часах
 
         prev_position = positions.first()
 
         for current_position in positions[1:]:
-            # Рассчитываем расстояние между точками
+            # Расчет расстояния между точками в км
             segment_distance = Decimal(str(geodesic(
                 (float(prev_position.latitude), float(prev_position.longitude)),
                 (float(current_position.latitude), float(current_position.longitude))
             ).kilometers))
 
-            # Рассчитываем время между точками в часах
+            # Расчет времени между точками в часах
             time_diff = (current_position.date_time - prev_position.date_time).total_seconds()
-            segment_time = Decimal(str(time_diff)) / Decimal('3600')  # секунды -> часы
+            segment_time = Decimal(str(time_diff)) / Decimal('3600')
 
-            total_distance += segment_distance
-            total_time += segment_time
+            total_distance_km += segment_distance
+            total_time_h += segment_time
             prev_position = current_position
 
-            if total_time > 0:
-            # Средняя скорость = общее расстояние / общее время
-                avg_speed = total_distance / total_time  # результат в км/ч
-            # Конвертируем в м/с (если нужно)
-            avg_speed_m_s = avg_speed * Decimal('1000') / Decimal('3600')  # км/ч -> м/с
-            Run.objects.filter(id=run_id).update(speed=round(float(avg_speed_m_s), 2))
+            if total_time_h > 0:
+            # Средняя скорость в км/ч
+                avg_speed_kmh = total_distance_km / total_time_h
+            # Конвертация в м/с
+            avg_speed_ms = avg_speed_kmh * Decimal('1000') / Decimal('3600')
+            Run.objects.filter(id=run_id).update(speed=round(float(avg_speed_ms), 2))
