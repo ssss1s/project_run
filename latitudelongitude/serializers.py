@@ -128,3 +128,4 @@ class PositionSerializer(serializers.ModelSerializer):
         if 'date_time' in ret and isinstance(ret['date_time'], datetime):
             ret['date_time'] = ret['date_time'].strftime('%Y-%m-%dT%H:%M:%S.%f')
         return ret
+

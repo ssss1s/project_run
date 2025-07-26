@@ -47,11 +47,11 @@ class PositionViewSet(viewsets.ModelViewSet):
             distance = Decimal(str(last_position.distance)) + segment_meters
 
         # Округляем до сотых
-        distance = round(distance, 2)
+        distance =distance // 1000
         speed = round(speed, 2)
 
         serializer.validated_data.update({
-            'distance': float(distance),
+            'distance': float(distance) ,
             'speed': float(speed),
             'date_time': date_time
         })
