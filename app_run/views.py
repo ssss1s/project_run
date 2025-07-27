@@ -108,18 +108,20 @@ class RunStopAPIView(APIView):
                     {"error": "Запуск может быть остановлен только из состояния in_progress"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Получаем крайние позиции для расчета общего времени
             extreme_positions = Position.objects.filter(run=run).aggregate(
                 first_position=Min('date_time'),
                 last_position=Max('date_time')
             )
+
             run_time_seconds = 0.0
             if extreme_positions['first_position'] and extreme_positions['last_position']:
                 run_time_seconds = (extreme_positions['last_position'] -
-                                  extreme_positions['first_position']).total_seconds()
-
+                                    extreme_positions['first_position']).total_seconds()
 
             # Получаем все точки маршрута
-            positions = Position.objects.filter(run=run).order_by('id')
+            positions = Position.objects.filter(run=run).order_by('date_time')
             total_distance_meters = 0.0
             collected_items = set()
 
@@ -128,7 +130,7 @@ class RunStopAPIView(APIView):
                     prev_pos = positions[i - 1]
                     curr_pos = positions[i]
 
-                    # Проверяем координаты
+                    # Пропускаем точки с отсутствующими координатами
                     if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
                         continue
 
@@ -139,10 +141,8 @@ class RunStopAPIView(APIView):
                     ).meters
                     total_distance_meters += segment_distance
 
-                    # Поиск ближайших артефактов
+                    # Логика сбора артефактов (оставлена без изменений)
                     current_point = (curr_pos.latitude, curr_pos.longitude)
-
-                    # Оптимизированный поиск в радиусе ~100 метров
                     lat_range = (
                         curr_pos.latitude - Decimal('0.0009'),
                         curr_pos.latitude + Decimal('0.0009')
@@ -151,38 +151,43 @@ class RunStopAPIView(APIView):
                         curr_pos.longitude - Decimal('0.0009'),
                         curr_pos.longitude + Decimal('0.0009')
                     )
-
                     nearby_items = CollectibleItem.objects.filter(
                         latitude__range=lat_range,
                         longitude__range=lon_range
-                    ).exclude(items=run.athlete)  # Используем правильный related_name
+                    ).exclude(items=run.athlete)
 
                     for item in nearby_items:
                         item_point = (item.latitude, item.longitude)
                         distance_to_item = geodesic(current_point, item_point).meters
-
                         if distance_to_item <= 100:
                             item.items.add(run.athlete)
                             collected_items.add(item.id)
 
             total_distance_km = round(total_distance_meters / 1000, 2)
 
+            # Рассчитываем среднюю скорость (м/с)
+            avg_speed = round(total_distance_meters / run_time_seconds, 2) if run_time_seconds > 0 else 0.0
+
             # Обновляем забег
             run.status = RunStatus.FINISHED
             run.distance = total_distance_km
             run.run_time_seconds = run_time_seconds
+            run.speed = avg_speed
             run.save()
 
             # Проверяем достижения
             self.check_achievements(run.athlete, len(collected_items))
 
-            return Response({
-                "status": "Запуск успешно остановлен",
-                "distance": total_distance_km,
-                "points_count": positions.count(),
-                "collected_items_count": len(collected_items)
-            }, status=status.HTTP_200_OK)
-
+            return Response(
+                {
+                    "status": "success",
+                    "distance_km": total_distance_km,
+                    "run_time_seconds": run_time_seconds,
+                    "avg_speed_m_s": avg_speed,
+                    "collected_items": len(collected_items)
+                },
+                status=status.HTTP_200_OK
+            )
     def check_achievements(self, athlete, new_items_count):
         """Проверка и выдача достижений"""
         # Проверяем количество завершенных забегов
@@ -217,18 +222,6 @@ class RunStopAPIView(APIView):
                 athlete=athlete,
                 full_name="Пробеги 50 километров!"
             )
-
-        # Награда за сбор артефактов (пример)
-        total_items = CollectibleItem.objects.filter(items=athlete).count()
-        if total_items >= 5 and not ChallengeAthlete.objects.filter(
-                athlete=athlete,
-                full_name="Собери 5 артефактов!"
-        ).exists():
-            ChallengeAthlete.objects.create(
-                athlete=athlete,
-                full_name="Собери 5 артефактов!"
-            )
-
 
 
 
