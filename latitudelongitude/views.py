@@ -25,33 +25,33 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        distance_km = Decimal('0.0')  # Накопленное расстояние в километрах
+        distance_m = Decimal('0.0')  # Накопленное расстояние в метрах
         speed = Decimal('0.0')  # Скорость в м/с
 
         if previous_positions.exists():
             last_position = previous_positions.last()
 
-            # Расстояние между точками в километрах
-            segment_km = Decimal(str(geodesic(
-                (float(last_position.latitude), float(last_position.longitude)),
-                (float(latitude), float(longitude))
-            ).kilometers))
+            # Расстояние между точками в метрах
+            segment_m = Decimal(str(geodesic(
+                (Decimal(last_position.latitude), Decimal(last_position.longitude)),
+                (Decimal(latitude), Decimal(longitude))
+            ).meters))
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
                 # Скорость = расстояние (км) * 1000 / время (с) → результат в м/с
-                speed = (segment_km * Decimal('1000')) / Decimal(str(time_diff))
+                speed = (segment_m * Decimal('1000')) / Decimal(str(time_diff))
 
             # Накопленное расстояние в километрах (без деления на 1000!)
-            distance_km = Decimal(str(last_position.distance)) + segment_km
+            distance_m = Decimal(str(last_position.distance)) + segment_m
 
         # Округляем до сотых
-        distance_km = round(distance_km, 2)
+        distance_m = round(distance_m / 1000, 2)
         speed = round(speed, 2)
 
         serializer.validated_data.update({
-            'distance': float(distance_km),  # Сохраняем в километрах
+            'distance': float(distance_m),  # Сохраняем в километрах
             'speed': float(speed),
             'date_time': date_time
         })
