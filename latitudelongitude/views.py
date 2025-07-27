@@ -59,19 +59,3 @@ class PositionViewSet(viewsets.ModelViewSet):
         self.update_run_average_speed(run.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def update_run_average_speed(self, run_id):
-        """Расчет средней скорости забега"""
-        positions = Position.objects.filter(run_id=run_id).order_by('date_time')
-
-        if positions.count() < 2:
-            Run.objects.filter(id=run_id).update(speed=0.00)
-            return
-
-        # Средняя скорость как среднее арифметическое скоростей всех позиций (кроме первой)
-        avg_speed = positions.exclude(speed=0).aggregate(
-            avg_speed=models.Avg('speed')
-        )['avg_speed'] or 0.00
-
-        Run.objects.filter(id=run_id).update(
-            speed=round(Decimal(avg_speed), 2)
-        )
