@@ -1,12 +1,8 @@
 from django.utils import timezone
 from decimal import Decimal
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Min, Max
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-
-from app_run import models
-from app_run.models import Run
 from .models import Position
 from .serializers import PositionSerializer
 from geopy.distance import geodesic
@@ -56,6 +52,5 @@ class PositionViewSet(viewsets.ModelViewSet):
         })
 
         self.perform_create(serializer)
-        self.update_run_average_speed(run.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
