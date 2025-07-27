@@ -4,6 +4,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Min, Max
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+
+from app_run import models
 from app_run.models import Run
 from .models import Position
 from .serializers import PositionSerializer
@@ -57,29 +59,19 @@ class PositionViewSet(viewsets.ModelViewSet):
         self.update_run_average_speed(run.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def update_run_average_speed(self, run_id):  # Добавляем параметр run_id
+    def update_run_average_speed(self, run_id):
+        """Расчет средней скорости забега"""
         positions = Position.objects.filter(run_id=run_id).order_by('date_time')
 
         if positions.count() < 2:
-            Run.objects.filter(id=run_id).update(speed=0.0)
+            Run.objects.filter(id=run_id).update(speed=0.00)
             return
 
-        total_distance_km = 0.0
-        total_time_h = 0.0
+        # Средняя скорость как среднее арифметическое скоростей всех позиций (кроме первой)
+        avg_speed = positions.exclude(speed=0).aggregate(
+            avg_speed=models.Avg('speed')
+        )['avg_speed'] or 0.00
 
-        for i in range(1, len(positions)):
-            prev_pos = positions[i - 1]
-            curr_pos = positions[i]
-
-            segment_km = geodesic(
-                (float(prev_pos.latitude), float(prev_pos.longitude)),
-                (float(curr_pos.latitude), float(curr_pos.longitude))
-            ).kilometers
-
-            time_h = (curr_pos.date_time - prev_pos.date_time).total_seconds() / 3600
-
-            total_distance_km += segment_km
-            total_time_h += time_h
-
-        avg_speed_kmh = round(total_distance_km / total_time_h, 2) if total_time_h > 0 else 0.0
-        Run.objects.filter(id=run_id).update(speed=avg_speed_kmh)
+        Run.objects.filter(id=run_id).update(
+            speed=round(Decimal(avg_speed), 2)
+        )
