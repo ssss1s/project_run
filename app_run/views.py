@@ -104,56 +104,58 @@ class RunStopAPIView(APIView):
             run = get_object_or_404(Run.objects.select_for_update(), pk=run_id)
 
             if run.status != RunStatus.IN_PROGRESS:
-                return Response({"error": "Запуск может быть остановлен только из состояния in_progress"},
-                                status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "Run must be in progress to be stopped"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # Получаем крайние позиции
-            extreme_positions = Position.objects.filter(run=run).aggregate(
-                first_position=Min('date_time'),
-                last_position=Max('date_time')
-            )
-
-            # Рассчитываем общее время
-            run_time_seconds = (extreme_positions['last_position'] -
-                                extreme_positions['first_position']).total_seconds() \
-                if extreme_positions['first_position'] and extreme_positions['last_position'] \
-                else 0.0
-
-            # Рассчитываем общее расстояние
+            # Получаем все позиции в хронологическом порядке
             positions = Position.objects.filter(run=run).order_by('date_time')
-            total_distance_meters = 0.0
 
-            if positions.count() > 1:
-                for i in range(1, positions.count()):
-                    prev_pos = positions[i - 1]
-                    curr_pos = positions[i]
+            if positions.count() < 2:
+                run.status = RunStatus.FINISHED
+                run.distance = 0.0
+                run.speed = 0.0
+                run.run_time_seconds = 0.0
+                run.save()
+                return Response({"status": "success"}, status=status.HTTP_200_OK)
 
-                    if None in (prev_pos.latitude, prev_pos.longitude,
-                                curr_pos.latitude, curr_pos.longitude):
-                        continue
+            # Рассчитываем общее расстояние и время
+            total_distance_m = 0.0
+            first_position = positions.first()
+            last_position = positions.last()
 
-                    segment = geodesic(
-                        (float(prev_pos.latitude), float(prev_pos.longitude)),
-                        (float(curr_pos.latitude), float(curr_pos.longitude))
-                    ).meters
+            for i in range(1, positions.count()):
+                prev_pos = positions[i - 1]
+                curr_pos = positions[i]
 
-                    total_distance_meters += segment
+                segment_distance = geodesic(
+                    (float(prev_pos.latitude), float(prev_pos.longitude)),
+                    (float(curr_pos.latitude), float(curr_pos.longitude))
+                ).meters
+                total_distance_m += segment_distance
 
-            # Правильный расчет средней скорости
-            avg_speed = round(total_distance_meters / run_time_seconds, 2) if run_time_seconds > 0 else 0.0
+            # Общее время в секундах
+            total_time_s = (last_position.date_time - first_position.date_time).total_seconds()
+
+            # Рассчитываем среднюю скорость (м/с)
+            avg_speed_m_s = round(total_distance_m / total_time_s, 2) if total_time_s > 0 else 0.0
+
+            # Общее расстояние в км
+            total_distance_km = round(total_distance_m / 1000, 2)
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = round(total_distance_meters / 1000, 2)  # в км
-            run.run_time_seconds = run_time_seconds
-            run.speed = avg_speed  # в м/с
+            run.distance = total_distance_km
+            run.speed = avg_speed_m_s
+            run.run_time_seconds = round(total_time_s, 2)
             run.save()
 
             return Response({
                 "status": "success",
-                "distance_km": run.distance,
-                "run_time_seconds": run_time_seconds,
-                "avg_speed_m_s": avg_speed
+                "distance_km": total_distance_km,
+                "avg_speed_m_s": avg_speed_m_s,
+                "run_time_seconds": round(total_time_s, 2)
             }, status=status.HTTP_200_OK)
     def check_achievements(self, athlete, new_items_count):
         """Проверка и выдача достижений"""
