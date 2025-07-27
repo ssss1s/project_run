@@ -104,90 +104,57 @@ class RunStopAPIView(APIView):
             run = get_object_or_404(Run.objects.select_for_update(), pk=run_id)
 
             if run.status != RunStatus.IN_PROGRESS:
-                return Response(
-                    {"error": "Запуск может быть остановлен только из состояния in_progress"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"error": "Запуск может быть остановлен только из состояния in_progress"},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-            # Получаем крайние позиции для расчета общего времени
+            # Получаем крайние позиции
             extreme_positions = Position.objects.filter(run=run).aggregate(
                 first_position=Min('date_time'),
                 last_position=Max('date_time')
             )
 
-            run_time_seconds = 0.0
-            if extreme_positions['first_position'] and extreme_positions['last_position']:
-                run_time_seconds = (extreme_positions['last_position'] -
-                                    extreme_positions['first_position']).total_seconds()
+            # Рассчитываем общее время
+            run_time_seconds = (extreme_positions['last_position'] -
+                                extreme_positions['first_position']).total_seconds() \
+                if extreme_positions['first_position'] and extreme_positions['last_position'] \
+                else 0.0
 
-            # Получаем все точки маршрута
+            # Рассчитываем общее расстояние
             positions = Position.objects.filter(run=run).order_by('date_time')
             total_distance_meters = 0.0
-            collected_items = set()
 
             if positions.count() > 1:
                 for i in range(1, positions.count()):
                     prev_pos = positions[i - 1]
                     curr_pos = positions[i]
 
-                    # Пропускаем точки с отсутствующими координатами
-                    if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
+                    if None in (prev_pos.latitude, prev_pos.longitude,
+                                curr_pos.latitude, curr_pos.longitude):
                         continue
 
-                    # Рассчитываем расстояние между точками
-                    segment_distance = geodesic(
-                        (prev_pos.latitude, prev_pos.longitude),
-                        (curr_pos.latitude, curr_pos.longitude)
+                    segment = geodesic(
+                        (float(prev_pos.latitude), float(prev_pos.longitude)),
+                        (float(curr_pos.latitude), float(curr_pos.longitude))
                     ).meters
-                    total_distance_meters += segment_distance
 
-                    # Логика сбора артефактов (оставлена без изменений)
-                    current_point = (curr_pos.latitude, curr_pos.longitude)
-                    lat_range = (
-                        curr_pos.latitude - Decimal('0.0009'),
-                        curr_pos.latitude + Decimal('0.0009')
-                    )
-                    lon_range = (
-                        curr_pos.longitude - Decimal('0.0009'),
-                        curr_pos.longitude + Decimal('0.0009')
-                    )
-                    nearby_items = CollectibleItem.objects.filter(
-                        latitude__range=lat_range,
-                        longitude__range=lon_range
-                    ).exclude(items=run.athlete)
+                    total_distance_meters += segment
 
-                    for item in nearby_items:
-                        item_point = (item.latitude, item.longitude)
-                        distance_to_item = geodesic(current_point, item_point).meters
-                        if distance_to_item <= 100:
-                            item.items.add(run.athlete)
-                            collected_items.add(item.id)
-
-            total_distance_km = round(total_distance_meters / 1000, 2)
-
-            # Рассчитываем среднюю скорость (м/с)
+            # Правильный расчет средней скорости
             avg_speed = round(total_distance_meters / run_time_seconds, 2) if run_time_seconds > 0 else 0.0
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = total_distance_km
+            run.distance = round(total_distance_meters / 1000, 2)  # в км
             run.run_time_seconds = run_time_seconds
-            run.speed = avg_speed
+            run.speed = avg_speed  # в м/с
             run.save()
 
-            # Проверяем достижения
-            self.check_achievements(run.athlete, len(collected_items))
-
-            return Response(
-                {
-                    "status": "success",
-                    "distance_km": total_distance_km,
-                    "run_time_seconds": run_time_seconds,
-                    "avg_speed_m_s": avg_speed,
-                    "collected_items": len(collected_items)
-                },
-                status=status.HTTP_200_OK
-            )
+            return Response({
+                "status": "success",
+                "distance_km": run.distance,
+                "run_time_seconds": run_time_seconds,
+                "avg_speed_m_s": avg_speed
+            }, status=status.HTTP_200_OK)
     def check_achievements(self, athlete, new_items_count):
         """Проверка и выдача достижений"""
         # Проверяем количество завершенных забегов
