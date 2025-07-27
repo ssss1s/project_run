@@ -167,12 +167,39 @@ class RunStopAPIView(APIView):
 
             total_distance_km = round(total_distance_meters / 1000, 2)
 
-            if run_time_seconds > Decimal('0'):
-                avg_speed_m_s=(total_distance_meters / run_time_seconds)
+            # Исправленный расчет средней скорости
+            if positions.count() > 1:
+                total_distance_m = Decimal('0.0')
+                positions = positions.order_by('date_time')  # Важно сортировать по времени!
+
+                for i in range(1, positions.count()):
+                    prev_pos = positions[i - 1]
+                    curr_pos = positions[i]
+
+                    if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
+                        continue
+
+                    # Явное преобразование к Decimal
+                    segment_km = Decimal(str(geodesic(
+                        (float(prev_pos.latitude), float(prev_pos.longitude)),
+                        (float(curr_pos.latitude), float(curr_pos.longitude))
+                    ).kilometers))
+
+                    total_distance_m += segment_km * Decimal('1000')  # Переводим в метры
+
+            # Преобразуем время к Decimal
+            total_time_s = Decimal(str(run_time_seconds))
+
+            # Расчет средней скорости с точным округлением
+            if total_time_s > Decimal('0'):
+                avg_speed_m_s = (total_distance_m / total_time_s).quantize(Decimal('0.00'))
             else:
                 avg_speed_m_s = Decimal('0.00')
 
-            avg_speed_m_s=round(avg_speed_m_s, 2)
+            # Обновляем данные забега
+            run.distance = (total_distance_m / Decimal('1000')).quantize(Decimal('0.00'))
+            run.speed = avg_speed_m_s
+            run.run_time_seconds = total_time_s.quantize(Decimal('0.00'))
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
