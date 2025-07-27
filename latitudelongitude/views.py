@@ -3,7 +3,6 @@ from decimal import Decimal
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-
 from app_run.models import Run
 from .models import Position
 from .serializers import PositionSerializer
@@ -25,33 +24,31 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        total_distance_km = Decimal('0.0')  # Накопленное расстояние в КИЛОМЕТРАХ
+        total_distance_km = Decimal('0.0')  # Начинаем с Decimal
         speed = Decimal('0.0')
 
         if previous_positions.exists():
             last_position = previous_positions.last()
 
-            # Расстояние между точками в метрах
+            # Расстояние между точками в метрах (Decimal)
             segment_m = Decimal(str(geodesic(
-                (last_position.latitude, last_position.longitude),
-                (latitude, longitude)
+                (float(last_position.latitude), float(last_position.longitude)),
+                (float(latitude), float(longitude))
             ).meters))
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                speed = segment_m / Decimal(str(time_diff))  # Правильный расчёт скорости (м/с)
+                speed = segment_m / Decimal(str(time_diff))
 
-            # Накопленное расстояние = предыдущее расстояние + новый сегмент
-            total_distance_km = last_position.distance + (segment_m / Decimal('1000'))  # Переводим в км
+            # Приводим last_position.distance к Decimal перед сложением
+            prev_distance = Decimal(str(last_position.distance))
+            total_distance_km = prev_distance + (segment_m / Decimal('1000'))
 
-        # Округляем до сотых
-        total_distance_km = round(total_distance_km, 2)
-        speed = round(speed, 2)
-
+        # Округляем и конвертируем в float для сохранения
         serializer.validated_data.update({
-            'distance': float(total_distance_km),  # Сохраняем в километрах
-            'speed': float(speed),
+            'distance': float(round(total_distance_km, 2)),
+            'speed': float(round(speed, 2)),
             'date_time': date_time
         })
 
