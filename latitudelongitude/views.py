@@ -57,42 +57,35 @@ class PositionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def update_run_average_speed(self, run_id):
-        # Получаем все позиции забега в хронологическом порядке
         positions = Position.objects.filter(run_id=run_id).order_by('date_time')
 
-        # Если позиций меньше 2, среднюю скорость считать нельзя
         if positions.count() < 2:
             Run.objects.filter(id=run_id).update(speed=0.0)
             return
 
-        total_distance_m = 0.0  # Общее расстояние в метрах
-        total_time_s = 0.0  # Общее время в секундах
+        total_distance_km = 0.0  # Используем километры для согласованности
+        total_time_h = 0.0  # Используем часы для скорости в км/ч
 
-        # Проходим по всем парам последовательных позиций
         for i in range(1, len(positions)):
             prev_pos = positions[i - 1]
             curr_pos = positions[i]
 
-            # Рассчитываем расстояние между позициями в метрах
-            distance_m = geodesic(
-                (prev_pos.latitude, prev_pos.longitude),
-                (curr_pos.latitude, curr_pos.longitude)
-            ).meters
+            # Расстояние в километрах
+            segment_km = geodesic(
+                (float(prev_pos.latitude), float(prev_pos.longitude)),
+                (float(curr_pos.latitude), float(curr_pos.longitude))
+            ).kilometers
 
-            # Рассчитываем временной интервал в секундах
-            time_s = (curr_pos.date_time - prev_pos.date_time).total_seconds()
+            # Время в часах
+            time_h = (curr_pos.date_time - prev_pos.date_time).total_seconds() / 3600
 
-            # Суммируем общие показатели
-            total_distance_m += distance_m
-            total_time_s += time_s
+            total_distance_km += segment_km
+            total_time_h += time_h
 
-        # Рассчитываем среднюю скорость (м/с)
-        if total_time_s > 0:
-            avg_speed_ms = total_distance_m / total_time_s
-            # Округляем до двух знаков после запятой
-            avg_speed_ms = round(avg_speed_ms, 2)
+        if total_time_h > 0:
+            avg_speed_kmh = total_distance_km / total_time_h
+            avg_speed_kmh = round(avg_speed_kmh, 2)
         else:
-            avg_speed_ms = 0.0
+            avg_speed_kmh = 0.0
 
-        # Обновляем запись забега
-        Run.objects.filter(id=run_id).update(speed=avg_speed_ms)
+        Run.objects.filter(id=run_id).update(speed=avg_speed_kmh)
