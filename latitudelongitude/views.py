@@ -25,42 +25,39 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        distance_m = Decimal('0.0')  # Накопленное расстояние в метрах
-        speed = Decimal('0.0')  # Скорость в м/с
+        total_distance_km = Decimal('0.0')  # Накопленное расстояние в КИЛОМЕТРАХ
+        speed = Decimal('0.0')
 
         if previous_positions.exists():
             last_position = previous_positions.last()
 
             # Расстояние между точками в метрах
             segment_m = Decimal(str(geodesic(
-                (Decimal(last_position.latitude), Decimal(last_position.longitude)),
-                (Decimal(latitude), Decimal(longitude))
+                (last_position.latitude, last_position.longitude),
+                (latitude, longitude)
             ).meters))
 
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             if time_diff > 0:
-                # Скорость = расстояние (км) * 1000 / время (с) → результат в м/с
-                speed = (segment_m * Decimal('1000')) / Decimal(str(time_diff))
+                speed = segment_m / Decimal(str(time_diff))  # Правильный расчёт скорости (м/с)
 
-            # Накопленное расстояние в километрах (без деления на 1000!)
-            distance_m = Decimal(str(last_position.distance)) + segment_m
+            # Накопленное расстояние = предыдущее расстояние + новый сегмент
+            total_distance_km = last_position.distance + (segment_m / Decimal('1000'))  # Переводим в км
 
         # Округляем до сотых
-        distance_m = round(distance_m / 1000, 2)
+        total_distance_km = round(total_distance_km, 2)
         speed = round(speed, 2)
 
         serializer.validated_data.update({
-            'distance': float(distance_m),  # Сохраняем в километрах
+            'distance': float(total_distance_km),  # Сохраняем в километрах
             'speed': float(speed),
             'date_time': date_time
         })
 
         self.perform_create(serializer)
         self.update_run_average_speed(run.id)
-
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def update_run_average_speed(self, run_id):
         # Получаем все позиции забега в хронологическом порядке
