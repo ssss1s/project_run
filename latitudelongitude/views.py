@@ -38,28 +38,28 @@ class PositionViewSet(viewsets.ModelViewSet):
             # Точное время в секундах
             time_diff = Decimal(str((date_time - last_position.date_time).total_seconds()))
 
-            # Точный расчёт скорости (Decimal)
+            # Точный расчёт скорости (Decimal) с округлением до сотых
             if time_diff > 0:
-                segment_speed_mps = segment_m / time_diff
+                segment_speed_mps = (segment_m / time_diff).quantize(Decimal('0.01'))
 
             # Обновление суммарного расстояния
             total_distance_km = Decimal(str(last_position.distance)) + (segment_m / Decimal('1000'))
 
-            # Расчёт средней скорости
+            # Расчёт средней скорости с округлением до сотых
             first_position = positions.first()
             total_time_sec = Decimal(str((date_time - first_position.date_time).total_seconds()))
 
             if total_time_sec > 0:
-                average_speed_mps = (total_distance_km * Decimal('1000')) / total_time_sec
-                run.speed = float(average_speed_mps)  # Сохраняем полную точность
+                average_speed_mps = ((total_distance_km * Decimal('1000')) / total_time_sec).quantize(Decimal('0.01'))
+                run.speed = float(average_speed_mps)
                 run.run_time_seconds = float(total_time_sec)
                 run.distance = float(total_distance_km)
                 run.save()
 
-        # Сохраняем данные с полной точностью
+        # Сохраняем данные с округлением до сотых
         serializer.validated_data.update({
             'distance': float(total_distance_km),
-            'speed': float(segment_speed_mps),  # Без округления
+            'speed': float(segment_speed_mps),  # Округлено до сотых
             'date_time': date_time
         })
 
