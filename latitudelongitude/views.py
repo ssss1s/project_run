@@ -1,3 +1,4 @@
+from django.db.models import Sum, Count
 from django.utils import timezone
 from decimal import Decimal
 from django_filters.rest_framework import DjangoFilterBackend
@@ -22,64 +23,57 @@ class PositionViewSet(viewsets.ModelViewSet):
         longitude = Decimal(str(serializer.validated_data['longitude']))
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
-        # Получаем все позиции в хронологическом порядке
-        positions = Position.objects.filter(run=run).order_by('date_time')
-        segment_speeds = []
-        total_distance_m = Decimal('0.0')
+        # Получаем агрегированные данные по существующим позициям
+        existing_data = Position.objects.filter(run=run).aggregate(
+            total_speed=Sum('speed'),
+            count=Count('id'),
+            total_distance=Sum('distance')
+        )
 
-        # Рассчитываем скорости для всех существующих сегментов
-        prev_position = None
-        for position in positions:
-            if prev_position:
-                segment_m = Decimal(geodesic(
-                    (float(prev_position.latitude), float(prev_position.longitude)),
-                    (float(position.latitude), float(position.longitude))
-                ).meters)
-                time_diff = (position.date_time - prev_position.date_time).total_seconds()
+        # Рассчитываем новый сегмент
+        new_segment_m = Decimal('0.0')
+        new_segment_speed = Decimal('0.0')
 
-                if time_diff > 0:
-                    speed = segment_m / Decimal(str(time_diff))
-                    segment_speeds.append(float(speed))
-                    total_distance_m += segment_m
-            prev_position = position
-
-        # Рассчитываем скорость для нового сегмента
-        if positions.exists():
-            last_position = positions.last()
-            segment_m = Decimal(geodesic(
+        if existing_data['count'] > 0:
+            last_position = Position.objects.filter(run=run).latest('date_time')
+            new_segment_m = Decimal(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
             ).meters)
+
             time_diff = (date_time - last_position.date_time).total_seconds()
-
             if time_diff > 0:
-                segment_speed = segment_m / Decimal(str(time_diff))
-                segment_speeds.append(float(segment_speed))
-                total_distance_m += segment_m
-        else:
-            segment_speed = Decimal('0.0')
+                new_segment_speed = new_segment_m / Decimal(str(time_diff))
 
-        # Рассчитываем среднюю скорость
-        if segment_speeds:
-            average_speed = Decimal(sum(segment_speeds)) / Decimal(len(segment_speeds))
+        # Рассчитываем новую среднюю скорость
+        if existing_data['count'] > 0:
+            total_speed = Decimal(str(existing_data['total_speed'])) + new_segment_speed
+            total_count = existing_data['count'] + 1
+            average_speed = total_speed / Decimal(str(total_count))
+
+            # Обновляем общее расстояние
+            total_distance_km = Decimal(str(existing_data['total_distance'])) + (new_segment_m / Decimal('1000'))
         else:
-            average_speed = Decimal('0.0')
+            average_speed = new_segment_speed
+            total_distance_km = new_segment_m / Decimal('1000')
+            total_count = 1 if new_segment_m > 0 else 0
 
         # Обновляем данные забега
-        if positions.exists():
-            total_time_sec = (date_time - positions.first().date_time).total_seconds()
-        else:
-            total_time_sec = 0
-
         run.speed = float(round(average_speed, 2))
-        run.distance = float(round(total_distance_m / 1000, 3))
-        run.run_time_seconds = float(total_time_sec)
+        run.distance = float(round(total_distance_km, 3))
+
+        if existing_data['count'] > 0:
+            first_position = Position.objects.filter(run=run).earliest('date_time')
+            run.run_time_seconds = (date_time - first_position.date_time).total_seconds()
+        else:
+            run.run_time_seconds = 0
+
         run.save()
 
         # Сохраняем новую позицию
         serializer.validated_data.update({
-            'distance': float(round(total_distance_m / 1000, 3)),
-            'speed': float(round(segment_speed, 2)) if positions.exists() else 0.0,
+            'distance': float(round(total_distance_km, 3)),
+            'speed': float(round(new_segment_speed, 2)),
             'date_time': date_time
         })
 
