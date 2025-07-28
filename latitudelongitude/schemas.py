@@ -33,8 +33,6 @@ class PositionCreate(BaseModel):
         run = Run.objects.filter(id=run_id).first()
         if not run:
             raise ValueError("Забег не существует")
-        if run.status != RunStatus.IN_PROGRESS:
-            raise ValueError("Забег должен быть в статусе 'in_progress'")
         return run_id
 
 class PositionResponse(BaseModel):
