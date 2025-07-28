@@ -108,53 +108,83 @@ class RunStopAPIView(APIView):
                     {"error": "Запуск может быть остановлен только из состояния in_progress"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            # Получаем позиции, сортированные по времени
-            positions = Position.objects.filter(run=run).order_by('date_time')
+            extreme_positions = Position.objects.filter(run=run).aggregate(
+                first_position=Min('date_time'),
+                last_position=Max('date_time')
+            )
+            run_time_seconds = 0.0
+            if extreme_positions['first_position'] and extreme_positions['last_position']:
+                run_time_seconds = (extreme_positions['last_position'] -
+                                  extreme_positions['first_position']).total_seconds()
 
-            # Инициализация
-            total_distance_m = Decimal('0.0')
+
+            # Получаем все точки маршрута
+            positions = Position.objects.filter(run=run).order_by('id')
+            total_distance_meters = 0.0
             collected_items = set()
 
-            # Расчет общего расстояния
             if positions.count() > 1:
-                prev_pos = positions[0]
-                for curr_pos in positions[1:]:
-                    if None in (prev_pos.latitude, prev_pos.longitude,
-                                curr_pos.latitude, curr_pos.longitude):
+                for i in range(1, positions.count()):
+                    prev_pos = positions[i - 1]
+                    curr_pos = positions[i]
+
+                    # Проверяем координаты
+                    if None in (prev_pos.latitude, prev_pos.longitude, curr_pos.latitude, curr_pos.longitude):
                         continue
 
-                    segment_m = Decimal(str(geodesic(
-                        (float(prev_pos.latitude), float(prev_pos.longitude)),
-                        (float(curr_pos.latitude), float(curr_pos.longitude))
-                    ).meters))
+                    # Рассчитываем расстояние между точками
+                    segment_distance = geodesic(
+                        (prev_pos.latitude, prev_pos.longitude),
+                        (curr_pos.latitude, curr_pos.longitude)
+                    ).meters
+                    total_distance_meters += segment_distance
 
-                    total_distance_m += segment_m
-                    prev_pos = curr_pos
+                    # Поиск ближайших артефактов
+                    current_point = (curr_pos.latitude, curr_pos.longitude)
 
-            # Расчет общего времени
-            if positions.count() > 1:
-                total_time_s = Decimal(str(
-                    (positions.last().date_time - positions.first().date_time).total_seconds()
-                ))
-            else:
-                total_time_s = Decimal('0.0')
+                    # Оптимизированный поиск в радиусе ~100 метров
+                    lat_range = (
+                        curr_pos.latitude - Decimal('0.0009'),
+                        curr_pos.latitude + Decimal('0.0009')
+                    )
+                    lon_range = (
+                        curr_pos.longitude - Decimal('0.0009'),
+                        curr_pos.longitude + Decimal('0.0009')
+                    )
 
-            # Расчет средней скорости
-            avg_speed_m_s = (total_distance_m / total_time_s).quantize(Decimal('0.00')) \
-                if total_time_s > Decimal('0') else Decimal('0.00')
+                    nearby_items = CollectibleItem.objects.filter(
+                        latitude__range=lat_range,
+                        longitude__range=lon_range
+                    ).exclude(items=run.athlete)  # Используем правильный related_name
 
-            # Обновление забега
+                    for item in nearby_items:
+                        item_point = (item.latitude, item.longitude)
+                        distance_to_item = geodesic(current_point, item_point).meters
+
+                        if distance_to_item <= 100:
+                            item.items.add(run.athlete)
+                            collected_items.add(item.id)
+
+            total_distance_km = round(total_distance_meters / 1000, 2)
+
+            # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = (total_distance_m / Decimal('1000')).quantize(Decimal('0.00'))
-            run.speed = avg_speed_m_s
-            run.run_time_seconds = total_time_s.quantize(Decimal('0.00'))
+            run.distance = total_distance_km
+            run.run_time_seconds = run_time_seconds
             run.save()
+
+            try:
+                self.check_achievements(run.athlete, len(collected_items))
+            except Exception as e:
+                print(f"Error in check_achievements: {str(e)}")
+                raise  # повторно поднимаем исключение
+
 
             return Response({
                 "status": "Запуск успешно остановлен",
-                "distance": float(run.distance),
-                "avg_speed_m_s": float(avg_speed_m_s),
-                "run_time_seconds": float(run.run_time_seconds)
+                "distance": total_distance_km,
+                "points_count": positions.count(),
+                "collected_items_count": len(collected_items)
             }, status=status.HTTP_200_OK)
 
     def check_achievements(self, athlete, new_items_count):

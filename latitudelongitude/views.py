@@ -22,14 +22,14 @@ class PositionViewSet(viewsets.ModelViewSet):
         longitude = Decimal(str(serializer.validated_data['longitude']))
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
-        previous_positions = Position.objects.filter(run=run).order_by('date_time')
-        total_distance_km = Decimal('0.0')  # Начинаем с Decimal
+        positions = Position.objects.filter(run=run).order_by('date_time')
+        total_distance_km = Decimal('0.0')
         speed = Decimal('0.0')
 
-        if previous_positions.exists():
-            last_position = previous_positions.last()
+        if positions.exists():
+            last_position = positions.last()
 
-            # Расстояние между точками в метрах (Decimal)
+            # Расстояние между точками в метрах
             segment_m = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
@@ -40,11 +40,20 @@ class PositionViewSet(viewsets.ModelViewSet):
             if time_diff > 0:
                 speed = segment_m / Decimal(str(time_diff))
 
-            # Приводим last_position.distance к Decimal перед сложением
             prev_distance = Decimal(str(last_position.distance))
             total_distance_km = prev_distance + (segment_m / Decimal('1000'))
 
-        # Округляем и конвертируем в float для сохранения
+            # Обновляем среднюю скорость для Run
+            first_position = positions.first()
+            total_time_seconds = (date_time - first_position.date_time).total_seconds()
+
+            if total_time_seconds > 0:
+                average_speed = total_distance_km * 1000 / Decimal(str(total_time_seconds))  # м/с
+                run.speed = float(round(average_speed, 2))
+                run.run_time_seconds = total_time_seconds
+                run.distance = float(round(total_distance_km, 2))
+                run.save()
+
         serializer.validated_data.update({
             'distance': float(round(total_distance_km, 2)),
             'speed': float(round(speed, 2)),
