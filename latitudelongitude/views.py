@@ -23,48 +23,50 @@ class PositionViewSet(viewsets.ModelViewSet):
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
         positions = Position.objects.filter(run=run).order_by('date_time')
-        total_distance_m = Decimal('0.0')  # Суммарное расстояние в метрах
-        segment_speed = Decimal('0.0')  # Скорость текущего сегмента
+        total_distance_km = Decimal('0.0')  # Суммарное расстояние в километрах
+        segment_speed_mps = Decimal('0.0')  # Скорость текущего сегмента в м/с
 
         if positions.exists():
             last_position = positions.last()
 
-            # Расчёт расстояния между текущей и предыдущей точкой (в метрах)
+            # Расчёт расстояния между точками (в метрах)
             segment_m = Decimal(str(geodesic(
                 (float(last_position.latitude), float(last_position.longitude)),
                 (float(latitude), float(longitude))
             ).meters))
+
+            # Переводим в километры для хранения
+            segment_km = segment_m / Decimal('1000')
 
             # Расчёт времени между точками (в секундах)
             time_diff = (date_time - last_position.date_time).total_seconds()
 
             # Скорость текущего сегмента (м/с)
             if time_diff > 0:
-                segment_speed = segment_m / Decimal(str(time_diff))
+                segment_speed_mps = segment_m / Decimal(str(time_diff))
 
-            # Суммарное расстояние (обновляем с учётом нового сегмента)
-            total_distance_m = Decimal(str(last_position.distance)) * 1000 + segment_m
+            # Суммарное расстояние в км
+            total_distance_km = Decimal(str(last_position.distance)) + segment_km
 
-            # Расчёт средней скорости за весь забег
+            # Расчёт средней скорости за весь забег (м/с)
             first_position = positions.first()
             total_time_seconds = (date_time - first_position.date_time).total_seconds()
 
             if total_time_seconds > 0:
-                # Средняя скорость в м/с
+                # Общее расстояние в метрах для расчёта скорости
+                total_distance_m = total_distance_km * Decimal('1000')
                 average_speed_mps = total_distance_m / Decimal(str(total_time_seconds))
-                # Конвертация в км/ч (×3.6)
-                average_speed_kmph = average_speed_mps * Decimal('3.6')
 
                 # Обновление данных забега
-                run.speed = float(round(average_speed_kmph, 2))
+                run.speed = float(round(average_speed_mps, 2))  # Сохраняем в м/с
                 run.run_time_seconds = total_time_seconds
-                run.distance = float(round(total_distance_m / 1000, 2))  # Переводим в км
+                run.distance = float(round(total_distance_km, 2))  # В км
                 run.save()
 
         # Подготовка данных для сохранения новой точки
         serializer.validated_data.update({
-            'distance': float(round(total_distance_m / 1000, 2)),  # Сохраняем в км
-            'speed': float(round(segment_speed, 2)),  # Скорость текущего сегмента
+            'distance': float(round(total_distance_km, 2)),  # Сохраняем в км
+            'speed': float(round(segment_speed_mps, 2)),  # Скорость в м/с
             'date_time': date_time
         })
 
