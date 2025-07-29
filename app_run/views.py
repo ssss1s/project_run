@@ -112,7 +112,9 @@ class RunStopAPIView(APIView):
                 first_position=Min('date_time'),
                 last_position=Max('date_time')
             )
+
             run_time_seconds = 0.0
+            run_speed = 0.0
             if extreme_positions['first_position'] and extreme_positions['last_position']:
                 run_time_seconds = (extreme_positions['last_position'] -
                                   extreme_positions['first_position']).total_seconds()
@@ -165,11 +167,17 @@ class RunStopAPIView(APIView):
                             item.items.add(run.athlete)
                             collected_items.add(item.id)
 
+
             total_distance_km = round(total_distance_meters / 1000, 2)
+            run_speed=round((total_distance_meters /run_time_seconds), 2)
+
+
+
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
             run.distance = total_distance_km
+            run.speed=run_speed
             run.run_time_seconds = run_time_seconds
             run.save()
 
@@ -221,10 +229,6 @@ class RunStopAPIView(APIView):
                 athlete=athlete,
                 full_name="Пробеги 50 километров!"
             )
-
-
-
-
 
 @api_view(['GET'])
 def company_info(request):
