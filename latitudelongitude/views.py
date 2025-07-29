@@ -1,4 +1,3 @@
-from django.db.models import Sum, Count
 from django.utils import timezone
 from decimal import Decimal
 from django_filters.rest_framework import DjangoFilterBackend
@@ -18,60 +17,76 @@ class PositionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # 1. Извлечение данных
         run = serializer.validated_data['run']
         latitude = Decimal(str(serializer.validated_data['latitude']))
         longitude = Decimal(str(serializer.validated_data['longitude']))
         date_time = serializer.validated_data.get('date_time', timezone.now())
 
-        # 2. Получение существующих позиций
+        # 1. Получаем и анализируем существующие позиции
         positions = Position.objects.filter(run=run).order_by('date_time')
+        segments = []
 
-        # 3. Если это первая позиция в треке
-        if not positions.exists():
-            # Устанавливаем нулевые значения
-            run.distance = 0.0
-            run.speed = 0.0
-            run.run_time_seconds = 0.0
-            run.save()
+        # 2. Точный расчет всех сегментов (без округления)
+        for i in range(1, len(positions)):
+            prev = positions[i - 1]
+            curr = positions[i]
+            time_diff = (curr.date_time - prev.date_time).total_seconds()
 
-            # Сохраняем позицию с нулевыми значениями
-            serializer.validated_data.update({
-                'distance': 0.0,
-                'speed': 0.0
-            })
-            self.perform_create(serializer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if time_diff > 0:
+                distance_m = Decimal(geodesic(
+                    (float(prev.latitude), float(prev.longitude)),
+                    (float(curr.latitude), float(curr.longitude))
+                ).meters)
 
-        # 4. Если это не первая позиция - расчет параметров
-        last_position = positions.last()
-
-        # Расчет временного интервала (в секундах)
-        time_diff = Decimal(str((date_time - last_position.date_time).total_seconds()))
-
-        # Расчет расстояния между точками (в метрах)
-        distance_m = Decimal(geodesic(
-            (float(last_position.latitude), float(last_position.longitude)),
-            (float(latitude), float(longitude))
-        ).meters)
-
-        # Фильтрация аномальных значений
-        MIN_TIME_DIFF = Decimal('5.0')  # Минимум 5 секунд
-        MIN_DISTANCE = Decimal('10.0')  # Минимум 10 метров
-        MAX_SPEED = Decimal('55.56')  # Максимум 200 км/ч (55.56 м/с)
-
-        if time_diff >= MIN_TIME_DIFF and distance_m >= MIN_DISTANCE:
-            speed = distance_m / time_diff
-            if speed <= MAX_SPEED:
-                # Обновляем общую дистанцию трека (в км)
-
-                run.save()
-
-                # Данные для сохранения позиции
-                serializer.validated_data.update({
-                    'distance': float(distance_m / Decimal('1000')),
-                    'speed': float(speed)
+                segments.append({
+                    'distance': distance_m,
+                    'time': Decimal(str(time_diff)),
+                    'speed': distance_m / Decimal(str(time_diff))  # Без округления
                 })
 
-                self.perform_create(serializer)
+        # 3. Расчет нового сегмента
+        new_segment = {'distance': Decimal('0'), 'time': Decimal('0'), 'speed': Decimal('0')}
+        if positions.exists():
+            last_position = positions.last()
+            time_diff = (date_time - last_position.date_time).total_seconds()
+
+            if time_diff > 0:
+                new_segment['distance'] = Decimal(geodesic(
+                    (float(last_position.latitude), float(last_position.longitude)),
+                    (float(latitude), float(longitude))
+                ).meters)
+                new_segment['time'] = Decimal(str(time_diff))
+                new_segment['speed'] = new_segment['distance'] / new_segment['time']
+                segments.append(new_segment)
+
+        # 4. Расчет итоговых значений (без округления)
+        total_distance_m = sum(seg['distance'] for seg in segments)
+        total_time_sec = sum(seg['time'] for seg in segments)
+        total_distance_km = total_distance_m / Decimal('1000')
+
+        # 5. Физически корректный расчет средней скорости
+        average_speed = total_distance_m / total_time_sec if total_time_sec > 0 else Decimal('0')
+
+        # 6. Финальное округление ТОЛЬКО при сохранении
+        run.speed = float(round(average_speed, 2))  # Округление до сотых
+        run.distance = float(round(total_distance_km, 5))  # 5 знаков для точности в км
+        run.run_time_seconds = float(round(total_time_sec, 1))  # Округление времени до 0.1 сек
+        run.save()
+
+        # 7. Подготовка данных для новой позиции
+        current_speed = float(round(new_segment['speed'], 2)) if new_segment['time'] > 0 else 0.0
+        serializer.validated_data.update({
+            'distance': float(round(total_distance_km, 5)),  # Соответствует сохраненному в run
+            'speed': current_speed,
+            'date_time': date_time
+        })
+
+        # 8. Валидация округлений
+        print(f"\n=== Проверка округлений ===")
+        print(f"Исходная средняя скорость: {average_speed}")
+        print(f"После округления: {run.speed}")
+        print(f"Исходная дистанция: {total_distance_km} км")
+        print(f"После округления: {run.distance} км")
+
+        self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
