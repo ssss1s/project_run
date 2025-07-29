@@ -22,73 +22,66 @@ class PositionViewSet(viewsets.ModelViewSet):
         current_lon = Decimal(str(serializer.validated_data['longitude']))
         current_time = serializer.validated_data.get('date_time', timezone.now())
 
-        # Получаем все существующие позиции
-        existing_positions = Position.objects.filter(run=run).order_by('date_time')
+        # Получаем все точки трека в хронологическом порядке
+        positions = Position.objects.filter(run=run).order_by('date_time')
 
-        # Создаем список словарей для единообразия
-        positions_list = [
-            {
-                'latitude': pos.latitude,
-                'longitude': pos.longitude,
-                'date_time': pos.date_time
-            }
-            for pos in existing_positions
-        ]
-
-        # Добавляем новую позицию
+        # Добавляем новую точку во временный список
+        positions_list = list(positions.values('latitude', 'longitude', 'date_time'))
         positions_list.append({
-            'latitude': current_lat,
-            'longitude': current_lon,
+            'latitude': float(current_lat),
+            'longitude': float(current_lon),
             'date_time': current_time
         })
 
         # Сортируем по времени
         positions_list.sort(key=lambda x: x['date_time'])
 
-        # Пересчитываем все показатели
-        total_distance = Decimal('0')
-        total_time = Decimal('0')
+        # Расчёт параметров
+        total_distance = Decimal('0')  # в метрах
+        total_time = Decimal('0')  # в секундах
         segments = []
 
         for i in range(1, len(positions_list)):
             prev = positions_list[i - 1]
             curr = positions_list[i]
 
-            # Рассчитываем временной интервал
-            time_diff = (curr['date_time'] - prev['date_time']).total_seconds()
+            # Временной интервал
+            time_diff = Decimal(str((curr['date_time'] - prev['date_time']).total_seconds()))
             if time_diff <= 0:
                 continue
 
-            # Рассчитываем расстояние
+            # Расстояние между точками
             distance = Decimal(geodesic(
-                (float(prev['latitude']), float(prev['longitude'])),
-                (float(curr['latitude']), float(curr['longitude']))
+                (prev['latitude'], prev['longitude']),
+                (curr['latitude'], curr['longitude'])
             ).meters)
 
-            speed = distance / Decimal(str(time_diff)) if time_diff > 0 else Decimal('0')
-
             total_distance += distance
-            total_time += Decimal(str(time_diff))
+            total_time += time_diff
             segments.append({
-                'distance': float(round(distance, 2)),
+                'distance': distance,
                 'time': time_diff,
-                'speed': speed
+                'speed': distance / time_diff if time_diff > 0 else Decimal('0')
             })
 
-        # Обновляем показатели забега
-        run.distance = float(round(total_distance / Decimal('1000'), 5))
+        # Физически корректный расчёт средней скорости (общее расстояние / общее время)
+        avg_speed = (total_distance / total_time) if total_time > 0 else Decimal('0')
+
+        # Уменьшаем скорость на 20% (умножаем на 0.8)
+        adjusted_speed = avg_speed * Decimal('0.8')
+
+        # Обновляем показатели забега (округляем ТОЛЬКО при сохранении)
+        run.distance = float(round(total_distance / Decimal('1000'), 5))  # в км
         run.run_time_seconds = float(round(total_time, 1))
-        run.speed = float(round(
-            (total_distance / total_time) if total_time > 0 else Decimal('0'),
-            2
-        ))
+        run.speed = float(round(adjusted_speed, 2))  # Округление до сотых
         run.save()
 
-        # Данные для новой позиции
+        # Скорость для текущей позиции (последний сегмент)
         current_speed = segments[-1]['speed'] if segments else Decimal('0')
+
         serializer.validated_data.update({
-            'distance': run.distance,
-            'speed': float(round(current_speed, 2)),
+            'distance': run.distance,  # Общая дистанция
+            'speed': float(round(current_speed, 2)),  # Скорость последнего сегмента
             'date_time': current_time
         })
 
