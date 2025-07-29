@@ -176,8 +176,6 @@ class RunStopAPIView(APIView):
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
-            run.distance = total_distance_km
-            run.speed=run_speed
             run.run_time_seconds = run_time_seconds
             run.save()
 
