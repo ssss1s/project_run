@@ -18,68 +18,77 @@ class PositionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         run = serializer.validated_data['run']
-        latitude = Decimal(str(serializer.validated_data['latitude']))
-        longitude = Decimal(str(serializer.validated_data['longitude']))
+        current_lat = Decimal(str(serializer.validated_data['latitude']))
+        current_lon = Decimal(str(serializer.validated_data['longitude']))
         current_time = serializer.validated_data.get('date_time', timezone.now())
 
-        # 1. Находим ближайшую предыдущую точку по времени (не обязательно предыдущую в БД)
-        last_position = Position.objects.filter(
-            run=run,
-            date_time__lt=current_time  # только точки, которые были раньше текущей
-        ).order_by('-date_time').first()  # берём самую свежую из предыдущих
+        # Получаем все существующие позиции
+        existing_positions = Position.objects.filter(run=run).order_by('date_time')
 
-        # 2. Инициализация значений для новой точки
-        segment_distance = Decimal('0')
-        segment_time = Decimal('0')
-        segment_speed = Decimal('0')
+        # Создаем список словарей для единообразия
+        positions_list = [
+            {
+                'latitude': pos.latitude,
+                'longitude': pos.longitude,
+                'date_time': pos.date_time
+            }
+            for pos in existing_positions
+        ]
 
-        if last_position:
-            # 3. Расчёт параметров только для этого сегмента
-            segment_distance = Decimal(geodesic(
-                (float(last_position.latitude), float(last_position.longitude)),
-                (float(latitude), float(longitude))
+        # Добавляем новую позицию
+        positions_list.append({
+            'latitude': current_lat,
+            'longitude': current_lon,
+            'date_time': current_time
+        })
+
+        # Сортируем по времени
+        positions_list.sort(key=lambda x: x['date_time'])
+
+        # Пересчитываем все показатели
+        total_distance = Decimal('0')
+        total_time = Decimal('0')
+        segments = []
+
+        for i in range(1, len(positions_list)):
+            prev = positions_list[i - 1]
+            curr = positions_list[i]
+
+            # Рассчитываем временной интервал
+            time_diff = (curr['date_time'] - prev['date_time']).total_seconds()
+            if time_diff <= 0:
+                continue
+
+            # Рассчитываем расстояние
+            distance = Decimal(geodesic(
+                (float(prev['latitude']), float(prev['longitude'])),
+                (float(curr['latitude']), float(curr['longitude']))
             ).meters)
 
-            segment_time = Decimal(str((current_time - last_position.date_time).total_seconds()))
+            speed = distance / Decimal(str(time_diff)) if time_diff > 0 else Decimal('0')
 
-            if segment_time > 0:
-                segment_speed = segment_distance / segment_time
+            total_distance += distance
+            total_time += Decimal(str(time_diff))
+            segments.append({
+                'distance': float(round(distance, 2)),
+                'time': time_diff,
+                'speed': speed
+            })
 
-        # 4. Обновляем общие показатели трека
-        if last_position:
-            # Добавляем к общему расстоянию только новый сегмент
-            run.distance = (Decimal(str(run.distance or '0')) * 1000) + segment_distance
-        else:
-            # Это первая точка в треке
-            run.distance = Decimal('0')
-
-        # Конвертируем в км и округляем
-        run.distance = float(round(run.distance / Decimal('1000'), 5))
-
-        # Общее время (максимальное время между первой и последней точкой)
-        if last_position:
-            run.run_time_seconds = float(round(
-                Decimal(str(run.run_time_seconds or '0')) + segment_time,
-                1
-            ))
-        else:
-            run.run_time_seconds = 0.0
-
-        # Пересчёт средней скорости для всего трека
-        if run.run_time_seconds > 0:
-            run.speed = float(round(
-                (Decimal(str(run.distance)) * 1000) / Decimal(str(run.run_time_seconds)),
-                2
-            ))
-        else:
-            run.speed = 0.0
-
+        # Обновляем показатели забега
+        run.distance = float(round(total_distance / Decimal('1000'), 5))
+        run.run_time_seconds = float(round(total_time, 1))
+        run.speed = float(round(
+            (total_distance / total_time) if total_time > 0 else Decimal('0'),
+            2
+        ))
         run.save()
 
-        # 5. Подготовка данных для сохранения позиции
+        # Данные для новой позиции
+        current_speed = segments[-1]['speed'] if segments else Decimal('0')
         serializer.validated_data.update({
             'distance': run.distance,
-            'speed': float(round(segment_speed, 2)),
+            'speed': float(round(current_speed, 2)),
             'date_time': current_time
         })
 
