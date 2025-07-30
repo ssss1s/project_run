@@ -228,6 +228,19 @@ class RunStopAPIView(APIView):
                 full_name="Пробеги 50 километров!"
             )
 
+        fast_runs = finished_runs.filter(
+            distance__gte=2.0,  # 2 км или больше
+            run_time_seconds__lte=600  # 10 минут или меньше (600 секунд)
+        )
+        if fast_runs.exists() and not ChallengeAthlete.objects.filter(
+                athlete=athlete,
+                full_name="2 километра за 10 минут!"
+        ).exists():
+            ChallengeAthlete.objects.create(
+                athlete=athlete,
+                full_name="2 километра за 10 минут!"
+            )
+
 @api_view(['GET'])
 def company_info(request):
     details = {
