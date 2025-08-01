@@ -24,7 +24,7 @@ from app_run.views import RunViewSet
 from athlete_info.views import AthleteViewSet, ChallengeViewSet
 from item.views import CollectibleItemViewSet, upload_file
 from latitudelongitude.views import PositionViewSet
-from subscribe.views import SubscribeToCoachViewAPIView
+from subscribe.views import SubscribeToCoachView
 
 router = DefaultRouter()
 router.register('api/runs', RunViewSet)
@@ -42,6 +42,6 @@ urlpatterns = [
     path('api/upload_file/', upload_file),
     path('api/runs/<int:run_id>/start/', RunStartAPIView.as_view(), name='run-start'),
     path('api/runs/<int:run_id>/stop/', RunStopAPIView.as_view(), name='run-stop'),
-    path('api/subscribe_to_coach/<int:coach_id>/', SubscribeToCoachViewAPIView.as_view(), name='subscribe_to_coach'),
+    path('api/subscribe_to_coach/<int:coach_id>/', SubscribeToCoachView.as_view(), name='subscribe_to_coach'),
     path('', include(router.urls)),
 ]

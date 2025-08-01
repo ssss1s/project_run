@@ -1,65 +1,59 @@
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.shortcuts import get_object_or_404
-
 from django.db import IntegrityError
 from .models import User, Subscribe
-class SubscribeToCoachViewAPIView(APIView):
+
+class SubscribeToCoachView(APIView):
+    """
+    Эндпоинт для подписки атлета на тренера
+    POST /api/subscribe_to_coach/<coach_id>/
+    Тело: {'athlete': <athlete_id>}
+    """
+
     def post(self, request, coach_id):
+        # 1. Проверяем существование тренера
         try:
-            # 1. Проверка существования тренера
-            coach = get_object_or_404(User, id=coach_id)
-
-            if not coach.is_staff:
-                return Response(
-                    {'error': 'Указанный пользователь не является тренером'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 2. Проверка наличия athlete в запросе
-            athlete_id = request.data.get('athlete')
-            if not athlete_id:
-                return Response(
-                    {'error': 'Не указан ID атлета'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 3. Проверка существования и типа атлета
-            athlete = get_object_or_404(User, id=athlete_id)
-
-            if athlete.is_staff:
-                return Response(
-                    {'error': 'Указанный пользователь не является атлетом'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 4. Проверка существующей подписки
-            if Subscribe.objects.filter(coach=coach, athlete=athlete).exists():
-                return Response(
-                    {'error': 'Подписка уже существует'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # 5. Создание подписки
-            try:
-                subscription = Subscribe.objects.create(coach=coach, athlete=athlete)
-                return Response(
-                    {
-                        'success': 'Подписка успешно создана',
-                        'subscription_id': subscription.id
-                    },
-                    status=status.HTTP_201_CREATED
-                )
-            except IntegrityError:
-                return Response(
-                    {'error': 'Ошибка создания подписки'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        except Exception as e:
+            coach = User.objects.get(id=coach_id, is_staff=True)
+        except User.DoesNotExist:
             return Response(
-                {'error': f'Произошла ошибка: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': 'Тренер не найден или не является тренером'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 2. Проверяем наличие athlete в запросе
+        athlete_id = request.data.get('athlete')
+        if not athlete_id:
+            return Response(
+                {'error': 'Не указан ID атлета'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Проверяем существование атлета
+        try:
+            athlete = User.objects.get(id=athlete_id, is_staff=False)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Атлет не найден или не является атлетом'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 4. Проверяем существующую подписку
+        if Subscribe.objects.filter(coach=coach, athlete=athlete).exists():
+            return Response(
+                {'error': 'Подписка уже существует'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 5. Создаем подписку
+        try:
+            Subscribe.objects.create(coach=coach, athlete=athlete)
+            return Response(
+                {'success': 'Подписка успешно оформлена'},
+                status=status.HTTP_200_OK
+            )
+        except IntegrityError:
+            return Response(
+                {'error': 'Ошибка создания подписки'},
+                status=status.HTTP_400_BAD_REQUEST
             )
