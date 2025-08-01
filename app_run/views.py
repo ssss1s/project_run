@@ -55,47 +55,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['date_joined']
     pagination_class = UserPagination
 
-    @action(detail=True, methods=['post'], url_path='subscribe')
-    def subscribe_to_coach(self, request, pk=None):
-        coach = get_object_or_404(User, id=pk)
-
-        # Check if coach is actually a coach
-        if not coach.is_staff:
-            return Response(
-                {'error': 'The user is not a coach'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get athlete ID from request body
-        athlete_id = request.data.get('athlete')
-        if not athlete_id:
-            return Response(
-                {'error': 'Athlete ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            athlete = User.objects.get(id=athlete_id, is_staff=False)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Athlete not found or is not an athlete'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Check if subscription already exists
-        if Subscribe.objects.filter(coach=coach, athlete=athlete).exists():
-            return Response(
-                {'error': 'Already subscribed to this coach'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Create the subscription
-        Subscribe.objects.create(coach=coach, athlete=athlete)
-
-        return Response(
-            {'success': 'Subscribed successfully'},
-            status=status.HTTP_200_OK
-        )
 
     def get_queryset(self):
         queryset = User.objects.filter(is_superuser=False).annotate(
@@ -118,7 +77,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'list':
             return UserSerializer
         elif self.action == 'retrieve':
-            return UserDetailSerializer
+            return UserDetailSerializer,
         return super().get_serializer_class()
 
     def get_queryset(self):

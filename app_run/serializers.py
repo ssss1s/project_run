@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from subscribe.models import Subscribe
-from .models import Run, RunStatus
+from .models import Run
 from django.contrib.auth.models import User
 from decimal import Decimal, InvalidOperation
 
@@ -63,14 +63,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'date_joined', 'username',  'first_name', 'last_name', 'type', 'runs_finished']
+        fields = ['id', 'date_joined', 'username', 'first_name', 'last_name',
+                'type', 'runs_finished']
 
     def get_type(self, obj):
-            if obj.is_staff:
-               return 'coach'
-            else:
-                return 'athlete'
-
+        return 'coach' if obj.is_staff else 'athlete'
 
 class UserDetailSerializer(UserSerializer):
     items = serializers.SerializerMethodField()
@@ -78,25 +75,19 @@ class UserDetailSerializer(UserSerializer):
     athletes = serializers.SerializerMethodField()
 
     class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + ['items', 'coach', 'athletes']
+        fields = UserSerializer.Meta.fields + ['items', 'coach','athletes']
 
     def get_items(self, obj):
         from item.serializers import CollectibleItemSerializer
-        items = obj.items.all()
-        return CollectibleItemSerializer(items, many=True).data
+        return CollectibleItemSerializer(obj.items.all(), many=True).data
 
     def get_coach(self, obj):
-        # Показываем только для атлетов (is_staff=False)
-        if not obj.is_staff:
-            subscription = Subscribe.objects.filter(athlete=obj).select_related('coach').first()
-            return subscription.coach.id if subscription else None
-        return None
+        subscription = Subscribe.objects.filter(athlete=obj).first()
+        return subscription.coach.id if subscription else None
 
     def get_athletes(self, obj):
-        # Показываем только для тренеров (is_staff=True)
-        if obj.is_staff:
-            return list(Subscribe.objects.filter(coach=obj).values_list('athlete_id', flat=True))
-        return None
+        subscriptions = Subscribe.objects.filter(coach=obj)
+        return list(subscriptions.values_list('athlete_id', flat=True)) if subscriptions else []
 
 
 
@@ -105,15 +96,3 @@ class UserDetailSerializer(UserSerializer):
 
 
 
-    #Добавь в API enpoint /api/users/ поле runs_finished в котором будет отображаться для каждого Юзера количество Забегов со статусом finished.
-
-
-#Создай endpoint api/users/ , с возможностью фильтра по полю type:
-
-    #Если type = "coach", значит надо вернуть тех юзеров, кто is_staff
-    #Если type = "athlete",  вернуть тех, кто не is_staff.
-    #Если type не указан (или в нем передано что-то другое)  - вернуть всех.
-    #Пользователей с флагом is_superuser не возвращать никогда.
-    #Используй ReadOnlyModelViewSet.
-
-#Возвращай не все поля модели User, а только id, date_joined, username, last_name и first_name. И плюс дополнительное поле type.```

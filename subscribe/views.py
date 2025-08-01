@@ -4,9 +4,25 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from subscribe.models import Subscribe
+from subscribe.serializers import SubscribeSerializer
 
 
 class SubscribeToCoachViewAPIView(APIView):
+    def get(self, request, coach_id=None):
+        """
+        GET /api/subscribe_to_coach/ - список всех подписок
+        GET /api/subscribe_to_coach/97/ - подписки конкретного тренера
+        """
+        if coach_id:
+            # Получаем подписки конкретного тренера
+            coach = get_object_or_404(User, id=coach_id, is_staff=True)
+            subscriptions = Subscribe.objects.filter(coach=coach)
+        else:
+            # Все подписки (можно добавить пагинацию)
+            subscriptions = Subscribe.objects.all()
+
+        serializer = SubscribeSerializer(subscriptions, many=True)
+        return Response(serializer.data)
     def post(self, request, coach_id):
         coach = get_object_or_404(User, id=coach_id)
 
