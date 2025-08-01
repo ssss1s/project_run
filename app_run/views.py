@@ -12,7 +12,6 @@ from rest_framework import viewsets, status
 from athlete_info.models import ChallengeAthlete
 from item.models import CollectibleItem
 from latitudelongitude.models import Position
-from subscribe.models import Subscribe
 from .models import Run, RunStatus
 from .serializers import UserSerializer, UserDetailSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -54,48 +53,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['last_name', 'first_name']
     ordering_fields = ['date_joined']
     pagination_class = UserPagination
-
-    @action(detail=True, methods=['post'], url_path='subscribe_to_coach')
-    def subscribe_to_coach(self, request, pk=None):
-        coach = get_object_or_404(User, id=pk)
-
-        # Check if coach is actually a coach
-        if not coach.is_staff:
-            return Response(
-                {'error': 'The user is not a coach'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get athlete ID from request body
-        athlete_id = request.data.get('athlete')
-        if not athlete_id:
-            return Response(
-                {'error': 'Athlete ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            athlete = User.objects.get(id=athlete_id, is_staff=False)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Athlete not found or is not an athlete'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Check if subscription already exists
-        if Subscribe.objects.filter(coach=coach, athlete=athlete).exists():
-            return Response(
-                {'error': 'Already subscribed to this coach'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Create the subscription
-        Subscribe.objects.create(coach=coach, athlete=athlete)
-
-        return Response(
-            {'success': 'Subscribed successfully'},
-            status=status.HTTP_200_OK
-        )
 
     def get_queryset(self):
         queryset = User.objects.filter(is_superuser=False).annotate(
