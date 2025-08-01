@@ -12,9 +12,8 @@ from rest_framework import viewsets, status
 from athlete_info.models import ChallengeAthlete
 from item.models import CollectibleItem
 from latitudelongitude.models import Position
-from subscribe.models import Subscribe
 from .models import Run, RunStatus
-from .serializers import UserSerializer, UserDetailSerializer
+from .serializers import UserSerializer, CoachDetailSerializer, AthleteDetailSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
@@ -76,33 +75,13 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return UserSerializer
-        elif self.action == 'retrieve':
-            return UserDetailSerializer,
-        return super().get_serializer_class()
 
-    def get_queryset(self):
-        queryset = User.objects.filter(is_superuser=False).annotate(
-            runs_finished_count=Count(
-                'runs',
-                filter=Q(runs__status=RunStatus.FINISHED),
-                distinct=True
-            )
-        )
+        if self.action == 'retrieve':
+            user = self.get_object()
+            if user.is_staff:
+                return CoachDetailSerializer
+            return AthleteDetailSerializer
 
-        user_type = self.request.query_params.get('type')
-        if user_type == 'coach':
-            queryset = queryset.filter(is_staff=True)
-        elif user_type == 'athlete':
-            queryset = queryset.filter(is_staff=False)
-
-        return queryset
-
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return UserSerializer
-        elif self.action == 'retrieve':
-            return UserDetailSerializer
         return super().get_serializer_class()
 
 

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from item.serializers import CollectibleItemSerializer
 from subscribe.models import Subscribe
 from .models import Run
 from django.contrib.auth.models import User
@@ -69,25 +70,32 @@ class UserSerializer(serializers.ModelSerializer):
     def get_type(self, obj):
         return 'coach' if obj.is_staff else 'athlete'
 
-class UserDetailSerializer(UserSerializer):
-    items = serializers.SerializerMethodField()
+class AthleteDetailSerializer(UserSerializer):
     coach = serializers.SerializerMethodField()
-    athletes = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
 
     class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + ['items', 'coach','athletes']
-
-    def get_items(self, obj):
-        from item.serializers import CollectibleItemSerializer
-        return CollectibleItemSerializer(obj.items.all(), many=True).data
+        fields = UserSerializer.Meta.fields + ['coach', 'items']
 
     def get_coach(self, obj):
         subscription = Subscribe.objects.filter(athlete=obj).first()
         return subscription.coach.id if subscription else None
 
+    def get_items(self, obj):
+        return CollectibleItemSerializer(obj.items.all(), many=True).data
+
+class CoachDetailSerializer(UserSerializer):
+    athletes = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ['athletes', 'items']
+
     def get_athletes(self, obj):
-        subscriptions = Subscribe.objects.filter(coach=obj)
-        return list(subscriptions.values_list('athlete_id', flat=True)) if subscriptions else []
+        return list(Subscribe.objects.filter(coach=obj).values_list('athlete_id', flat=True))
+
+    def get_items(self, obj):
+        return CollectibleItemSerializer(obj.items.all(), many=True).data
 
 
 
