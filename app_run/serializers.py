@@ -78,11 +78,11 @@ class AthleteDetailSerializer(UserSerializer):
         fields = UserSerializer.Meta.fields + ['coach', 'items']
 
     def get_coach(self, obj):
-        subscription = Subscribe.objects.filter(athlete=obj).first()
+        subscription = Subscribe.objects.filter(athlete=obj).select_related('coach').first()
         return subscription.coach.id if subscription else None
 
     def get_items(self, obj):
-        return CollectibleItemSerializer(obj.items.all(), many=True).data
+        return CollectibleItemSerializer(obj.items.all(), many=True).data if obj.items.exists() else []
 
 class CoachDetailSerializer(UserSerializer):
     athletes = serializers.SerializerMethodField()
@@ -95,8 +95,7 @@ class CoachDetailSerializer(UserSerializer):
         return list(Subscribe.objects.filter(coach=obj).values_list('athlete_id', flat=True))
 
     def get_items(self, obj):
-        return CollectibleItemSerializer(obj.items.all(), many=True).data
-
+        return CollectibleItemSerializer(obj.items.all(), many=True).data if obj.items.exists() else []
 
 
 

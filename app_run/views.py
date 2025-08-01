@@ -78,9 +78,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 
         if self.action == 'retrieve':
             user = self.get_object()
-            if user.is_staff:
-                return CoachDetailSerializer
-            return AthleteDetailSerializer
+            if not isinstance(user, User):
+                return UserSerializer
+
+            return CoachDetailSerializer if user.is_staff else AthleteDetailSerializer
 
         return super().get_serializer_class()
 
