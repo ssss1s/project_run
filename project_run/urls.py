@@ -42,6 +42,6 @@ urlpatterns = [
     path('api/upload_file/', upload_file),
     path('api/runs/<int:run_id>/start/', RunStartAPIView.as_view(), name='run-start'),
     path('api/runs/<int:run_id>/stop/', RunStopAPIView.as_view(), name='run-stop'),
-    path('api/subscribe_to_coach/<int:coach_id>/', SubscribeToCoachViewAPIView.as_view(), name='subscribe-to-coach'),
+    path('api/subscribe_to_coach/<int:coach_id>/', SubscribeToCoachViewAPIView.as_view(), name='subscribe_to_coach'),
     path('', include(router.urls)),
 ]
