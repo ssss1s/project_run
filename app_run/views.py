@@ -55,7 +55,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['date_joined']
     pagination_class = UserPagination
 
-    @action(detail=True, methods=['post'], url_path='subscribe')
+    @action(detail=True, methods=['post'], url_path='subscribe_to_coach')
     def subscribe_to_coach(self, request, pk=None):
         coach = get_object_or_404(User, id=pk)
 
