@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from subscribe.models import Subscribe
 from .models import Run, RunStatus
 from django.contrib.auth.models import User
 from decimal import Decimal, InvalidOperation
@@ -69,22 +71,32 @@ class UserSerializer(serializers.ModelSerializer):
             else:
                 return 'athlete'
 
-    #def get_runs_finished(self, obj):
-        #return obj.runs.filter(status=RunStatus.FINISHED).count()
 
 class UserDetailSerializer(UserSerializer):
-    items = serializers.SerializerMethodField()  # Изменено с EmailField
+    items = serializers.SerializerMethodField()
+    coach = serializers.SerializerMethodField()
+    athletes = serializers.SerializerMethodField()
 
     class Meta(UserSerializer.Meta):
-        model = User
-        fields = UserSerializer.Meta.fields + ['items']
+        fields = UserSerializer.Meta.fields + ['items', 'coach', 'athletes']
 
     def get_items(self, obj):
-        # Возвращаем список коллекционных предметов пользователя
-        from item.serializers import CollectibleItemSerializer  # Импортируем здесь, чтобы избежать циклических импортов
-        items = obj.items.all()  # Используем related_name из модели
+        from item.serializers import CollectibleItemSerializer
+        items = obj.items.all()
         return CollectibleItemSerializer(items, many=True).data
 
+    def get_coach(self, obj):
+        # Показываем только для атлетов (is_staff=False)
+        if not obj.is_staff:
+            subscription = Subscribe.objects.filter(athlete=obj).select_related('coach').first()
+            return subscription.coach.id if subscription else None
+        return None
+
+    def get_athletes(self, obj):
+        # Показываем только для тренеров (is_staff=True)
+        if obj.is_staff:
+            return list(Subscribe.objects.filter(coach=obj).values_list('athlete_id', flat=True))
+        return None
 
 
 

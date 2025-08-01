@@ -7,9 +7,6 @@ from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 
-
-
-
 class AthleteViewSet(ModelViewSet):
     queryset = AthleteInfo.objects.select_related()
     serializer_class = AthleteInfoSerializer

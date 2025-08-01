@@ -24,6 +24,7 @@ from app_run.views import RunViewSet
 from athlete_info.views import AthleteViewSet, ChallengeViewSet
 from item.views import CollectibleItemViewSet, upload_file
 from latitudelongitude.views import PositionViewSet
+from subscribe.views import SubscribeViewSet
 
 router = DefaultRouter()
 router.register('api/runs', RunViewSet)
@@ -32,6 +33,8 @@ router.register('api/athlete_info', AthleteViewSet, basename='athlete-info')
 router.register('api/challenges', ChallengeViewSet, basename='challenges')
 router.register('api/positions', PositionViewSet, basename='position')
 router.register('api/collectible_item', CollectibleItemViewSet, basename='collectible-item')
+router.register('api/subscribe_to_coach', SubscribeViewSet, basename='subscribe_to_coach')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
