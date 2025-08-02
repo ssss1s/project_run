@@ -18,7 +18,7 @@ class SubscribeToCoachView(APIView):
         except User.DoesNotExist:
             return Response(
                 {'error': 'Тренер не найден или не является тренером'},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         # 2. Проверяем наличие athlete в запросе
