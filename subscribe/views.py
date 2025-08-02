@@ -6,13 +6,7 @@ from .models import User, Subscribe
 
 
 class SubscribeToCoachView(APIView):
-    """
-    Эндпоинт для подписки атлета на тренера
-    POST /api/subscribe_to_coach/<coach_id>/
-    Тело: {'athlete': <athlete_id>}
-    """
-
-    def post(self, request, coach_id):
+     def post(self, request, coach_id):
         # 1. Проверяем существование пользователя с указанным coach_id
         try:
             user = User.objects.get(id=coach_id)
