@@ -19,6 +19,20 @@ from .serializers import RunSerializer
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Count, Q
+from rest_framework.permissions import AllowAny
+
+
+class CreateUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        is_staff = request.data.get('is_staff', False)
+        user = User.objects.create_user(
+            username=request.data['username'],
+            password=request.data['password'],
+            is_staff=is_staff
+        )
+        return Response({'id': user.id}, status=status.HTTP_201_CREATED)
 
 class UserPagination(PageNumberPagination):
     page_size = 5
