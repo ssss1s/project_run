@@ -188,10 +188,6 @@ class RunStopAPIView(APIView):
 
 
             total_distance_km = round(total_distance_meters / 1000, 2)
-            run_speed=round((total_distance_meters /run_time_seconds), 2)
-
-
-
 
             # Обновляем забег
             run.status = RunStatus.FINISHED
