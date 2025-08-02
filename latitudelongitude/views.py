@@ -61,7 +61,7 @@ class PositionViewSet(viewsets.ModelViewSet):
             segments.append({
                 'distance': distance,
                 'time': time_diff,
-                'speed': distance / time_diff if time_diff > 0 else Decimal('0')
+                'speed': distance / time_diff  if time_diff > 0 else Decimal('0')
             })
 
         # Физически корректный расчёт средней скорости (общее расстояние / общее время)

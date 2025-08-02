@@ -168,7 +168,10 @@ class RunStopAPIView(APIView):
             run.speed = run_speed
             run.save()
 
-            # ... остальной код проверки достижений ...
+            try:
+                self.check_achievements(run.athlete, len(collected_items))
+            except Exception as e:
+                print(f"Ошибка при проверке достижений: {str(e)}")
 
             return Response({
                 "status": "Запуск успешно остановлен",
