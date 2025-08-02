@@ -268,9 +268,3 @@ def company_info(request):
         'contacts': settings.CONTACTS,
     }
     return Response(details)
-
-
-
-
-
-

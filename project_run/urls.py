@@ -21,7 +21,7 @@ from django.conf import settings
 from app_run.views import company_info, UserViewSet, RunStartAPIView, RunStopAPIView
 from rest_framework.routers import DefaultRouter
 from app_run.views import RunViewSet
-from athlete_info.views import AthleteViewSet, ChallengeViewSet
+from athlete_info.views import AthleteViewSet, ChallengeViewSet, ChallengesSummaryView
 from item.views import CollectibleItemViewSet, upload_file
 from latitudelongitude.views import PositionViewSet
 from subscribe.views import SubscribeToCoachView
@@ -43,5 +43,6 @@ urlpatterns = [
     path('api/runs/<int:run_id>/start/', RunStartAPIView.as_view(), name='run-start'),
     path('api/runs/<int:run_id>/stop/', RunStopAPIView.as_view(), name='run-stop'),
     path('api/subscribe_to_coach/<int:coach_id>/', SubscribeToCoachView.as_view(), name='subscribe_to_coach'),
+    path('api/challenges_summary/', ChallengesSummaryView.as_view(), name='challenges-summary'),
     path('', include(router.urls)),
 ]

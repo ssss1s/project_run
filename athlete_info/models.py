@@ -12,4 +12,7 @@ class ChallengeAthlete(models.Model):
         full_name=models.CharField(max_length=100)
         athlete=models.ForeignKey(User, on_delete=models.CASCADE, related_name='challenges')
 
+        class Meta:
+            ordering = ['full_name']
+
 

@@ -31,3 +31,28 @@ class ChallengeAthleteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChallengeAthlete
         fields= ['id', 'athlete', 'full_name']
+
+
+from rest_framework import serializers
+from django.contrib.auth.models import User
+
+
+class AthleteSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'full_name']
+
+    def get_full_name(self, obj):
+        name_parts = []
+        if obj.first_name:
+            name_parts.append(obj.first_name)
+        if obj.last_name:
+            name_parts.append(obj.last_name)
+        return ' '.join(name_parts) if name_parts else None
+
+
+class ChallengeSummarySerializer(serializers.Serializer):
+    name_to_display = serializers.CharField(source='full_name')
+    athletes = AthleteSerializer(many=True)

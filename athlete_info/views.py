@@ -3,9 +3,13 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status, viewsets
 from .models import AthleteInfo, ChallengeAthlete
-from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer
+from .serializers import AthleteInfoSerializer, ChallengeAthleteSerializer, \
+    ChallengeSummarySerializer
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+from rest_framework import generics
+from collections import defaultdict
+
 
 class AthleteViewSet(ModelViewSet):
     queryset = AthleteInfo.objects.select_related()
@@ -45,10 +49,28 @@ class ChallengeViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['athlete']
 
+class ChallengesSummaryView(generics.ListAPIView):
+    serializer_class = ChallengeSummarySerializer
 
+    def get_queryset(self):
+        # ЕДИНСТВЕННЫЙ запрос с явным указанием нужных полей
+        queryset = ChallengeAthlete.objects.select_related('athlete').only(
+            'full_name',
+            'athlete__id',
+            'athlete__username',
+            'athlete__first_name',
+            'athlete__last_name'
+        ).order_by('full_name')
 
+        # Кэшируем результаты запроса
+        challenges = list(queryset)
 
+        # Группируем вручную
+        grouped = defaultdict(list)
+        for challenge in challenges:
+            grouped[challenge.full_name].append(challenge.athlete)
 
+        return [{'full_name': k, 'athletes': v} for k, v in grouped.items()]
 
 
 
