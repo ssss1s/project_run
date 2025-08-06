@@ -20,6 +20,7 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Count, Q
 from rest_framework.permissions import AllowAny
+from django.db.models import Avg
 
 
 class CreateUserView(APIView):
@@ -68,13 +69,17 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['date_joined']
     pagination_class = UserPagination
 
-
     def get_queryset(self):
         queryset = User.objects.filter(is_superuser=False).annotate(
             runs_finished_count=Count(
                 'runs',
                 filter=Q(runs__status=RunStatus.FINISHED),
                 distinct=True
+            ),
+            # Новая аннотация для рейтинга (только для тренеров)
+            avg_rating=Avg(
+                'subscribers__coach_rating__rating',  # subscribers → CoachRating → rating
+                filter=Q(is_staff=True)  # Считаем только для тренеров
             )
         )
 

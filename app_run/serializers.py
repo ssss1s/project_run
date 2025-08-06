@@ -61,14 +61,28 @@ class RunSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     type = serializers.SerializerMethodField()
     runs_finished = serializers.IntegerField(source='runs_finished_count', read_only=True)
+    rating = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'date_joined', 'username', 'first_name', 'last_name',
-                'type', 'runs_finished']
+                'type', 'runs_finished', 'rating']
 
     def get_type(self, obj):
         return 'coach' if obj.is_staff else 'athlete'
+
+    def get_rating(self, obj):
+        if not obj.is_staff:
+            return None
+
+        # Прямой запрос для гарантии
+        if hasattr(obj, 'avg_rating'):
+            return obj.avg_rating
+
+        from django.db.models import Avg
+        return obj.subscribers.aggregate(
+            avg=Avg('coach_rating__rating')
+        )['avg']
 
 class AthleteDetailSerializer(UserSerializer):
     coach = serializers.SerializerMethodField()
