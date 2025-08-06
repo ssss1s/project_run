@@ -30,16 +30,30 @@ class RateCoachView(APIView):
 
         # Проверяем валидность рейтинга
         rating = request.data.get('rating')
-        if rating is None or not 1 <= int(rating) <= 5:
+        if rating is None:
             return Response(
-                {'error': 'Рейтинг должен быть целым числом от 1 до 5'},
+                {'error': 'Не указан рейтинг'},
+                status=400
+            )
+
+        try:
+            rating_int = int(rating)
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Рейтинг должен быть целым числом'},
+                status=400
+            )
+
+        if not 1 <= rating_int <= 5:
+            return Response(
+                {'error': 'Рейтинг должен быть от 1 до 5'},
                 status=400
             )
 
         # Обновляем или создаем рейтинг
         CoachRating.objects.update_or_create(
             subscription=subscription,
-            defaults={'rating': rating}
+            defaults={'rating': rating_int}
         )
 
         return Response({'success': 'Рейтинг обновлён'}, status=200)
