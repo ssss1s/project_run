@@ -1,59 +1,83 @@
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.response import Response
+from rest_framework import status
 from subscribe.models import Subscribe
 from coach_rating.models import CoachRating
 
 
 class RateCoachView(APIView):
     def post(self, request, coach_id):
-        # Получаем тренера (404 если не найден или не тренер)
-        coach = get_object_or_404(User, id=coach_id, is_staff=True)
-
-        # Проверяем наличие athlete_id
-        athlete_id = request.data.get('athlete')
-        if not athlete_id:
-            return Response({'error': 'Не указан ID атлета'}, status=400)
-
-        # Получаем атлета (404 если не найден или не атлет)
-        athlete = get_object_or_404(User, id=athlete_id, is_staff=False)
-
-        # Проверяем подписку (возвращаем 400 если нет подписки)
+        """
+        Установка рейтинга тренера
+        - Тренер должен существовать и быть is_staff=True
+        - Атлет должен существовать и быть is_staff=False
+        - Атлет должен быть подписан на тренера
+        - Рейтинг должен быть целым числом 1-5
+        """
+        # Проверка тренера
         try:
-            subscription = Subscribe.objects.get(coach=coach, athlete=athlete)
-        except Subscribe.DoesNotExist:
+            coach = User.objects.get(id=coach_id, is_staff=True)
+        except User.DoesNotExist:
             return Response(
-                {'error': 'Атлет не подписан на этого тренера'},
-                status=400
+                {'error': 'Тренер не найден'},
+                status=status.HTTP_404_NOT_FOUND
             )
 
-        # Проверяем валидность рейтинга
+        # Проверка athlete_id в запросе
+        athlete_id = request.data.get('athlete')
+        if not athlete_id:
+            return Response(
+                {'error': 'Поле athlete обязательно'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Проверка существования атлета
+        try:
+            athlete = User.objects.get(id=athlete_id, is_staff=False)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Атлет не найден'},
+                status=status.HTTP_400_BAD_REQUEST  # Важно: возвращаем 400, а не 404
+            )
+
+        # Проверка подписки
+        if not Subscribe.objects.filter(coach=coach, athlete=athlete).exists():
+            return Response(
+                {'error': 'Атлет не подписан на тренера'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Валидация рейтинга
         rating = request.data.get('rating')
         if rating is None:
             return Response(
-                {'error': 'Не указан рейтинг'},
-                status=400
+                {'error': 'Поле rating обязательно'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            rating_int = int(rating)
+            rating = int(rating)
         except (ValueError, TypeError):
             return Response(
                 {'error': 'Рейтинг должен быть целым числом'},
-                status=400
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        if not 1 <= rating_int <= 5:
+        if not 1 <= rating <= 5:
             return Response(
                 {'error': 'Рейтинг должен быть от 1 до 5'},
-                status=400
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Обновляем или создаем рейтинг
+        # Сохранение рейтинга
+        subscription = Subscribe.objects.get(coach=coach, athlete=athlete)
         CoachRating.objects.update_or_create(
             subscription=subscription,
-            defaults={'rating': rating_int}
+            defaults={'rating': rating}
         )
 
-        return Response({'success': 'Рейтинг обновлён'}, status=200)
+        return Response(
+            {'success': 'Рейтинг успешно сохранен'},
+            status=status.HTTP_200_OK
+        )
