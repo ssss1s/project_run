@@ -1,9 +1,11 @@
-from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from rest_framework.response import Response
 from rest_framework import status
+from app_run.models import Run
 from subscribe.models import Subscribe
 from coach_rating.models import CoachRating
+from rest_framework.views import APIView
+from django.db.models import Sum, Avg
 
 
 class RateCoachView(APIView):
@@ -81,3 +83,43 @@ class RateCoachView(APIView):
             {'success': 'Рейтинг успешно сохранен'},
             status=status.HTTP_200_OK
         )
+
+
+from django.db.models import Sum, Avg, Max
+
+
+class AnalyticsForCoachView(APIView):
+    def get(self, request, coach_id):
+        # 1. Получаем всех атлетов, подписанных на этого тренера
+        athlete_ids = Subscribe.objects.filter(coach_id=coach_id).values_list('athlete_id', flat=True)
+
+        if not athlete_ids:
+            return Response({"error": "No athletes found for this coach"}, status=404)
+
+        # 2. Самый длинный забег среди атлетов этого тренера
+        longest_run = Run.objects.filter(athlete_id__in=athlete_ids).order_by('-distance').first()
+
+        # 3. Суммарный пробег каждого атлета
+        total_runs = Run.objects.filter(athlete_id__in=athlete_ids) \
+            .values('athlete_id') \
+            .annotate(total_distance=Sum('distance')) \
+            .order_by('-total_distance') \
+            .first()
+
+        # 4. Средняя скорость
+        avg_speed = Run.objects.filter(athlete_id__in=athlete_ids) \
+            .values('athlete_id') \
+            .annotate(avg_speed=Avg('speed')) \
+            .order_by('-avg_speed') \
+            .first()
+
+        response_data = {
+            'longest_run_user': longest_run.athlete_id if longest_run else None,
+            'longest_run_value': float(longest_run.distance) if longest_run else 0,
+            'total_run_user': total_runs['athlete_id'] if total_runs else None,
+            'total_run_value': float(total_runs['total_distance']) if total_runs else 0,
+            'speed_avg_user': avg_speed['athlete_id'] if avg_speed else None,
+            'speed_avg_value': float(avg_speed['avg_speed']) if avg_speed else 0,
+        }
+
+        return Response(response_data)

@@ -25,7 +25,7 @@ from athlete_info.views import AthleteViewSet, ChallengeViewSet, ChallengesSumma
 from item.views import CollectibleItemViewSet, upload_file
 from latitudelongitude.views import PositionViewSet
 from subscribe.views import SubscribeToCoachView
-from coach_rating.views import RateCoachView
+from coach_rating.views import RateCoachView, AnalyticsForCoachView
 
 router = DefaultRouter()
 router.register('api/runs', RunViewSet)
@@ -47,4 +47,5 @@ urlpatterns = [
     path('api/challenges_summary/', ChallengesSummaryView.as_view(), name='challenges-summary'),
     path('', include(router.urls)),
     path('api/rate_coach/<int:coach_id>/', RateCoachView.as_view()),
+    path('api/analytics_for_coach/<int:coach_id>/', AnalyticsForCoachView.as_view(), name='analytics_for_coach')
 ]
