@@ -2,10 +2,13 @@ from django.contrib.auth.models import User
 from rest_framework import status
 from app_run.models import Run
 from coach_rating.models import CoachRating
-from subscribe.models import Subscribe
-from django.db.models import Sum, Avg, ExpressionWrapper, F, FloatField
+from latitudelongitude.models import Position
+from django.db.models import Sum, Avg, ExpressionWrapper, F, FloatField, Sum
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from decimal import Decimal
+from subscribe.models import Subscribe
+from geopy.distance import geodesic
 
 
 
@@ -86,6 +89,9 @@ class RateCoachView(APIView):
         )
 
 
+
+
+
 class AnalyticsForCoachView(APIView):
     def get(self, request, coach_id):
         # 1. Получаем ID атлетов тренера
@@ -99,37 +105,43 @@ class AnalyticsForCoachView(APIView):
         # 2. Самый длинный забег
         longest_run = Run.objects.filter(
             athlete_id__in=athlete_ids,
-            status='finished'
+            status='finished',
+            distance__gt=0  # Только забеги с ненулевой дистанцией
         ).order_by('-distance').values('athlete_id', 'distance').first()
 
-        # 3. Суммарный пробег
+        # 3. Суммарный пробег (только завершенные забеги с ненулевой дистанцией)
         total_runs = Run.objects.filter(
             athlete_id__in=athlete_ids,
-            status='finished'
+            status='finished',
+            distance__gt=0
         ).values('athlete_id').annotate(
             total_distance=Sum('distance')
         ).order_by('-total_distance').first()
 
-        # 4. ПРАВИЛЬНЫЙ расчет средней скорости (с учетом нулевых значений)
-        avg_speed = Run.objects.filter(
+        # 4. Расчет средней скорости на основе сохраненных значений в Run
+        avg_speeds = Run.objects.filter(
             athlete_id__in=athlete_ids,
-            status='finished'
-        ).values('athlete_id').annotate(
-            avg_speed=ExpressionWrapper(
-                Sum(F('distance')) / (Sum(F('run_time_seconds')) / 3600),
+            status='finished',
+            run_time_seconds__gt=0,  # Исключаем забеги с нулевым временем
+            distance__gt=0           # Исключаем забеги с нулевой дистанцией
+        ).annotate(
+            calculated_speed=ExpressionWrapper(
+                (F('distance')*1000) / F('run_time_seconds') * 0.8,
                 output_field=FloatField()
             )
-        ).filter(
-            run_time_seconds__gt=0  # Исключаем забеги с нулевым временем
-        ).order_by('-avg_speed').first()
+        ).values('athlete_id').annotate(
+            avg_speed=Avg('calculated_speed')
+        ).order_by('-avg_speed')
+
+        fastest_athlete = avg_speeds.first()
 
         response_data = {
             'longest_run_user': longest_run['athlete_id'] if longest_run else None,
             'longest_run_value': round(float(longest_run['distance']), 2) if longest_run else 0,
             'total_run_user': total_runs['athlete_id'] if total_runs else None,
             'total_run_value': round(float(total_runs['total_distance']), 2) if total_runs else 0,
-            'speed_avg_user': avg_speed['athlete_id'] if avg_speed else None,
-            'speed_avg_value': round(float(avg_speed['avg_speed']), 2) if avg_speed else 0,
+            'speed_avg_user': fastest_athlete['athlete_id'] if fastest_athlete else None,
+            'speed_avg_value': round(float(fastest_athlete['avg_speed']), 2) if fastest_athlete else 0,
         }
 
         return Response(response_data)
