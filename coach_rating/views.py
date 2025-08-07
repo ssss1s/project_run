@@ -3,7 +3,7 @@ from rest_framework import status
 from app_run.models import Run
 from coach_rating.models import CoachRating
 from subscribe.models import Subscribe
-from django.db.models import Sum, Avg
+from django.db.models import Sum, Avg, ExpressionWrapper, F, FloatField
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
@@ -102,7 +102,7 @@ class AnalyticsForCoachView(APIView):
             status='finished'
         ).order_by('-distance').values('athlete_id', 'distance').first()
 
-        # 3. Суммарный пробег (в км)
+        # 3. Суммарный пробег
         total_runs = Run.objects.filter(
             athlete_id__in=athlete_ids,
             status='finished'
@@ -110,12 +110,17 @@ class AnalyticsForCoachView(APIView):
             total_distance=Sum('distance')
         ).order_by('-total_distance').first()
 
-        # 4. Средняя скорость (в м/с, БЕЗ конвертации)
+        # 4. ПРАВИЛЬНЫЙ расчет средней скорости (с учетом нулевых значений)
         avg_speed = Run.objects.filter(
             athlete_id__in=athlete_ids,
             status='finished'
         ).values('athlete_id').annotate(
-            avg_speed=Avg('speed')  # Оставляем в м/с
+            avg_speed=ExpressionWrapper(
+                Sum(F('distance')) / (Sum(F('run_time_seconds')) / 3600),
+                output_field=FloatField()
+            )
+        ).filter(
+            run_time_seconds__gt=0  # Исключаем забеги с нулевым временем
         ).order_by('-avg_speed').first()
 
         response_data = {
